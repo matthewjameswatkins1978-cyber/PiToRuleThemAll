@@ -1,0 +1,189 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mattspi.dev/schemas/qa-receipt-v1.schema.json",
+  "title": "QA Receipt v1",
+  "description": "Stable machine-readable QA verdict. Never includes secrets or unbounded command output.",
+  "type": "object",
+  "required": [
+    "schema",
+    "id",
+    "verdict",
+    "integrity",
+    "subject",
+    "intent",
+    "verification",
+    "tests",
+    "created_at"
+  ],
+  "properties": {
+    "schema": { "const": "mattspi.qa.receipt.v1" },
+    "id": { "type": "string", "pattern": "^qa-" },
+    "verdict": {
+      "enum": [
+        "PASS",
+        "PASS_WITH_NOTES",
+        "FAIL",
+        "INCONCLUSIVE",
+        "STOP_RECOMMENDED"
+      ]
+    },
+    "integrity": { "enum": ["OK", "SUSPECT", "COMPROMISED"] },
+    "subject": {
+      "type": "object",
+      "required": ["repo", "branch", "base_sha", "head_sha", "remote_verified"],
+      "properties": {
+        "repo": { "type": "string" },
+        "worktree": { "type": "string" },
+        "branch": { "type": "string" },
+        "base_sha": { "type": "string" },
+        "head_sha": { "type": "string" },
+        "remote": { "type": ["string", "null"] },
+        "remote_sha": { "type": ["string", "null"] },
+        "remote_verified": { "type": "boolean" },
+        "dirty": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "intent": {
+      "type": "object",
+      "required": ["spec_id", "spec_revision", "satisfied"],
+      "properties": {
+        "spec_id": { "type": "string" },
+        "spec_revision": { "type": "integer", "minimum": 1 },
+        "satisfied": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "reuse": {
+      "type": "object",
+      "properties": {
+        "searched": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "enum": [
+                "EXECUTED",
+                "OBSERVED",
+                "REPORTED",
+                "INFERRED",
+                "UNAVAILABLE"
+              ]
+            },
+            "structural": {
+              "enum": [
+                "EXECUTED",
+                "OBSERVED",
+                "REPORTED",
+                "INFERRED",
+                "UNAVAILABLE"
+              ]
+            },
+            "clones": {
+              "enum": [
+                "EXECUTED",
+                "OBSERVED",
+                "REPORTED",
+                "INFERRED",
+                "UNAVAILABLE"
+              ]
+            },
+            "lantern": {
+              "enum": [
+                "EXECUTED",
+                "OBSERVED",
+                "REPORTED",
+                "INFERRED",
+                "UNAVAILABLE"
+              ]
+            },
+            "reusery": {
+              "enum": [
+                "EXECUTED",
+                "OBSERVED",
+                "REPORTED",
+                "INFERRED",
+                "UNAVAILABLE"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "findings": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "verification": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["requirement_id", "status", "evidence_grade"],
+        "properties": {
+          "requirement_id": { "type": "string" },
+          "status": {
+            "enum": ["satisfied", "violated", "unverified", "not_checked"]
+          },
+          "evidence_grade": {
+            "enum": [
+              "EXECUTED",
+              "OBSERVED",
+              "REPORTED",
+              "INFERRED",
+              "UNAVAILABLE"
+            ]
+          },
+          "evidence": { "type": "object" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "tests": {
+      "type": "object",
+      "required": ["discovered", "executed", "passed", "failed"],
+      "properties": {
+        "discovered": { "type": "integer", "minimum": 0 },
+        "executed": { "type": "integer", "minimum": 0 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "builder_claims": {
+      "type": "object",
+      "properties": {
+        "supported": { "type": "array", "items": { "type": "string" } },
+        "unsupported": { "type": "array", "items": { "type": "string" } },
+        "contradicted": { "type": "array", "items": { "type": "string" } },
+        "not_checked": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "lantern": {
+      "type": "object",
+      "properties": {
+        "context_pack_id": { "type": ["string", "null"] },
+        "decisions_consulted": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "risks": { "type": "array", "items": { "type": "string" } },
+    "unknowns": { "type": "array", "items": { "type": "string" } },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["command", "exit_code"],
+        "properties": {
+          "command": { "type": "string" },
+          "exit_code": { "type": "integer" },
+          "truncated": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "created_at": { "type": "string" }
+  },
+  "additionalProperties": false
+}
