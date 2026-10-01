@@ -44,6 +44,8 @@ export class StdioMcpClient {
   private pending = new Map<number, (msg: Record<string, unknown>) => void>();
   private nextId = 1;
   private readonly timeoutMs: number;
+  private nonJsonLines = 0;
+  private nonJsonSample = "";
 
   constructor(private readonly opts: StdioMcpOptions) {
     this.timeoutMs = opts.timeoutMs ?? 60_000;
@@ -119,7 +121,11 @@ export class StdioMcpClient {
       try {
         msg = JSON.parse(text) as Record<string, unknown>;
       } catch {
-        continue; // server log line on stdout; ignore
+        // MCP stdout is protocol traffic: never silently swallow
+        // corruption. Count it and keep a sample; callers surface it.
+        this.nonJsonLines++;
+        if (!this.nonJsonSample) this.nonJsonSample = text.slice(0, 200);
+        continue;
       }
       if (typeof msg["id"] === "number") {
         const cb = this.pending.get(msg["id"]);
@@ -220,6 +226,15 @@ export class StdioMcpClient {
     } catch {
       return text as unknown as T;
     }
+  }
+
+  /**
+   * Protocol hygiene report. Non-JSON stdout lines are a protocol
+   * warning (server logging onto the protocol stream), escalated to an
+   * error by the caller when the count suggests corruption.
+   */
+  protocolNotes(): { nonJsonLines: number; sample: string } {
+    return { nonJsonLines: this.nonJsonLines, sample: this.nonJsonSample };
   }
 
   async stop(): Promise<void> {

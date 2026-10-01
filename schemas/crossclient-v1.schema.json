@@ -1,0 +1,92 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mattspi.dev/schemas/crossclient-v1.schema.json",
+  "title": "Cross-client proof receipt v1",
+  "description": "One Lantern proof marker shared between Pi and ChatGPT Desktop. chatgpt.observed stays false until matching retrieval evidence arrives; history is superseded, never rewritten.",
+  "type": "object",
+  "required": [
+    "schema",
+    "marker",
+    "memory_id",
+    "kind",
+    "content",
+    "created_at",
+    "project",
+    "pi",
+    "lantern",
+    "chatgpt",
+    "expected",
+    "provenance"
+  ],
+  "properties": {
+    "schema": { "const": "mattspi.crossclient.v1" },
+    "marker": { "type": "string", "minLength": 1 },
+    "memory_id": { "type": "string", "minLength": 1 },
+    "kind": { "type": "string" },
+    "content": { "type": "string" },
+    "created_at": { "type": "string" },
+    "project": {
+      "type": "object",
+      "required": ["repo", "sha"],
+      "properties": {
+        "repo": { "type": "string" },
+        "sha": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "pi": {
+      "type": "object",
+      "required": ["observed", "evidence_grade"],
+      "properties": {
+        "observed": { "const": true },
+        "evidence_grade": {
+          "enum": [
+            "EXECUTED",
+            "OBSERVED",
+            "REPORTED",
+            "INFERRED",
+            "UNAVAILABLE"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "lantern": {
+      "type": "object",
+      "required": ["status", "persisted", "post_restart"],
+      "properties": {
+        "status": { "type": "string" },
+        "persisted": { "type": "boolean" },
+        "post_restart": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "chatgpt": {
+      "type": "object",
+      "required": ["observed", "status"],
+      "properties": {
+        "observed": { "type": "boolean" },
+        "status": { "enum": ["PENDING", "VERIFIED"] }
+      },
+      "additionalProperties": false
+    },
+    "expected": {
+      "type": "object",
+      "required": [
+        "memory_id",
+        "kind",
+        "originator_actor_id",
+        "holder_actor_id"
+      ],
+      "properties": {
+        "memory_id": { "type": "string" },
+        "kind": { "type": "string" },
+        "originator_actor_id": { "type": "string" },
+        "holder_actor_id": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "provenance": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": false
+}

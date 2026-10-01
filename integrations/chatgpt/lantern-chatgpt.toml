@@ -1,0 +1,13 @@
+# Source of truth for the ChatGPT Desktop / Codex app Lantern entry.
+# Lives in: ~/.codex/config.toml  (user scope; restart the app after edits)
+# This file documents the exact block. Apply by merging, never by overwrite.
+
+[mcp_servers.lantern]
+command = 'D:\Projects\lantern-keeper\target\debug\lighting.exe'
+args = ["mcp"]
+cwd = 'D:\Projects\lantern-keeper'
+startup_timeout_sec = 30
+tool_timeout_sec = 60
+
+[mcp_servers.lantern.env]
+LIGHTING_SERVICE_URL = "http://127.0.0.1:4317"
