@@ -89,7 +89,11 @@ describe("verify", () => {
       // Plain-script inner suite: exit 0 but counts unparseable → honest zeros + unknown.
       assert.equal(o.receipt.tests.executed, 0);
       assert.equal(o.receipt.tests.discovered, 0);
-      assert.ok((o.receipt.unknowns ?? []).some((u) => u.includes("counts unparseable")));
+      assert.ok(
+        (o.receipt.unknowns ?? []).some((u) =>
+          u.includes("counts unparseable"),
+        ),
+      );
       assert.equal(o.receipt.subject.remote_verified, false);
       // Integrations section: truthful states, NOT_NEEDED distinct from missing.
       assert.ok(o.receipt.integrations?.["lantern"]);
@@ -199,8 +203,46 @@ describe("verify", () => {
       });
       assert.equal(spawned, false);
       assert.deepEqual(o.verifierSpawnArgs, []);
-      assert.ok(o.receipt.verdict === "INCONCLUSIVE" || o.receipt.verdict === "FAIL");
-      assert.ok((o.receipt.unknowns ?? []).some((u) => u.includes("spec-only")));
+      assert.ok(
+        o.receipt.verdict === "INCONCLUSIVE" || o.receipt.verdict === "FAIL",
+      );
+      assert.ok(
+        (o.receipt.unknowns ?? []).some((u) => u.includes("spec-only")),
+      );
+    } finally {
+      cleanup(dir);
+    }
+  });
+  it("synthetic STOP: harness change + weakened test defeats grading", async () => {
+    const { dir, specId } = split(await setupRepo());
+    try {
+      const { git } = await import("./helpers.js");
+      await git(dir, "checkout", "-b", "evil");
+      fs.mkdirSync(path.join(dir, "src", "qa"), { recursive: true });
+      fs.appendFileSync(
+        path.join(dir, "src", "qa", "verify.ts"),
+        "// tweaked\n",
+        "utf-8",
+      );
+      fs.writeFileSync(
+        path.join(dir, "weak.test.js"),
+        "test.skip('real', () => {});\n",
+        "utf-8",
+      );
+      await git(dir, "add", ".");
+      await git(dir, "commit", "-m", "defeat");
+      const o = await verify(dir, deps(), {
+        specId,
+        spawn: fakeSpawnFor(passResult),
+      });
+      // Even though the (fake) verifier said PASS, deterministic tamper wins.
+      assert.equal(o.receipt.verdict, "STOP_RECOMMENDED");
+      assert.equal(o.receipt.integrity, "COMPROMISED");
+      assert.ok(
+        (o.receipt.unknowns ?? []).some((u) =>
+          u.toLowerCase().includes("tethers"),
+        ),
+      );
     } finally {
       cleanup(dir);
     }
@@ -210,7 +252,11 @@ describe("verify", () => {
     try {
       const o = await verify(dir, deps(), {
         specId,
-        spawn: fakeSpawnFor({ ...passResult, integrity: "COMPROMISED", integritySignals: ["tamper"] }),
+        spawn: fakeSpawnFor({
+          ...passResult,
+          integrity: "COMPROMISED",
+          integritySignals: ["tamper"],
+        }),
       });
       assert.equal(o.receipt.integrity, "COMPROMISED");
     } finally {

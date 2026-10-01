@@ -36,7 +36,8 @@ export interface LanternSession {
   close(): Promise<void>;
 }
 
-const DEFAULT_LANTERN_BIN = "D:\\Projects\\lantern-keeper\\target\\debug\\lighting.exe";
+const DEFAULT_LANTERN_BIN =
+  "D:\\Projects\\lantern-keeper\\target\\debug\\lighting.exe";
 const DEFAULT_REUSERY_BIN = "C:\\Users\\Matmus\\.pi\\agent\\bin\\reusery.exe";
 const DEFAULT_TELLTAIL_REPO = "D:\\Projects\\Telltail";
 
@@ -52,7 +53,9 @@ async function serveReady(url: string, timeoutMs = 3000): Promise<boolean> {
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);
-    const r = await fetch(`${url.replace(/\/$/, "")}/health/ready`, { signal: ctrl.signal });
+    const r = await fetch(`${url.replace(/\/$/, "")}/health/ready`, {
+      signal: ctrl.signal,
+    });
     clearTimeout(t);
     if (!r.ok) return false;
     const body = (await r.json()) as { ready?: boolean };
@@ -77,30 +80,35 @@ function tcpOpen(url: string, timeoutMs: number): Promise<boolean> {
       resolve(false);
       return;
     }
-    import("node:net").then(({ default: net }) => {
-      const sock = net.createConnection({ host, port });
-      const done = (ok: boolean) => {
-        try {
-          sock.destroy();
-        } catch {
-          /* ignore */
-        }
-        resolve(ok);
-      };
-      const timer = setTimeout(() => done(false), timeoutMs);
-      sock.on("connect", () => {
-        clearTimeout(timer);
-        done(true);
-      });
-      sock.on("error", () => {
-        clearTimeout(timer);
-        done(false);
-      });
-    }).catch(() => resolve(false));
+    import("node:net")
+      .then(({ default: net }) => {
+        const sock = net.createConnection({ host, port });
+        const done = (ok: boolean) => {
+          try {
+            sock.destroy();
+          } catch {
+            /* ignore */
+          }
+          resolve(ok);
+        };
+        const timer = setTimeout(() => done(false), timeoutMs);
+        sock.on("connect", () => {
+          clearTimeout(timer);
+          done(true);
+        });
+        sock.on("error", () => {
+          clearTimeout(timer);
+          done(false);
+        });
+      })
+      .catch(() => resolve(false));
   });
 }
 
-function mcpCaller(client: StdioMcpClient, missingToolHint: string): LanternCaller & { close(): Promise<void> } {
+function mcpCaller(
+  client: StdioMcpClient,
+  missingToolHint: string,
+): LanternCaller & { close(): Promise<void> } {
   void missingToolHint;
   return {
     call: async (tool, args) => {
@@ -109,7 +117,10 @@ function mcpCaller(client: StdioMcpClient, missingToolHint: string): LanternCall
         return { ok: true, data };
       } catch (e) {
         const msg = (e as Error).message;
-        return { ok: false, error: /unknown tool/i.test(msg) ? `TOOL_MISSING: ${msg}` : msg };
+        return {
+          ok: false,
+          error: /unknown tool/i.test(msg) ? `TOOL_MISSING: ${msg}` : msg,
+        };
       }
     },
     close: () => client.stop(),
@@ -123,7 +134,9 @@ class StdioReuseryMcp implements ReuseryMcp {
     private projectRoot: string,
   ) {}
 
-  private async withClient<T>(fn: (c: StdioMcpClient) => Promise<T>): Promise<T> {
+  private async withClient<T>(
+    fn: (c: StdioMcpClient) => Promise<T>,
+  ): Promise<T> {
     const c = new StdioMcpClient({
       command: this.bin,
       args: ["mcp", "--project-root", this.projectRoot],
@@ -141,27 +154,47 @@ class StdioReuseryMcp implements ReuseryMcp {
   async catalog() {
     try {
       const data = await this.withClient((c) =>
-        c.callTool<{ primitives?: { primitive_id: string; contract_id: string; name: string; description: string }[] }>(
-          "reusery_catalog",
-          {},
-        ),
+        c.callTool<{
+          primitives?: {
+            primitive_id: string;
+            contract_id: string;
+            name: string;
+            description: string;
+          }[];
+        }>("reusery_catalog", {}),
       );
       return { ok: true as const, primitives: data.primitives ?? [] };
     } catch (e) {
-      return { ok: false as const, primitives: [], error: (e as Error).message };
+      return {
+        ok: false as const,
+        primitives: [],
+        error: (e as Error).message,
+      };
     }
   }
 
-  async resolve(primitiveId: string, contractId: string, candidates: { specimen_id: string; reuse_mode: string }[]) {
+  async resolve(
+    primitiveId: string,
+    contractId: string,
+    candidates: { specimen_id: string; reuse_mode: string }[],
+  ) {
     try {
       const data = await this.withClient((c) =>
-        c.callTool<{ status?: string; outcome?: string; reasons?: string[] }>("reusery_resolve", {
-          primitive_id: primitiveId,
-          contract_id: contractId,
-          candidates,
-        }),
+        c.callTool<{ status?: string; outcome?: string; reasons?: string[] }>(
+          "reusery_resolve",
+          {
+            primitive_id: primitiveId,
+            contract_id: contractId,
+            candidates,
+          },
+        ),
       );
-      return { ok: true as const, status: data.status, outcome: data.outcome, reasons: data.reasons ?? [] };
+      return {
+        ok: true as const,
+        status: data.status,
+        outcome: data.outcome,
+        reasons: data.reasons ?? [],
+      };
     } catch (e) {
       return { ok: false as const, error: (e as Error).message };
     }
@@ -178,7 +211,10 @@ export interface IntegrationRegistry {
   describeAll(): IntegrationDescriptor[];
 }
 
-export async function createRegistry(repoRoot: string, env: RegistryEnv = process.env): Promise<IntegrationRegistry> {
+export async function createRegistry(
+  repoRoot: string,
+  env: RegistryEnv = process.env,
+): Promise<IntegrationRegistry> {
   // Lantern: bridge binary + reachable service, else explicit degradation.
   const lanternBin = env["PI_QA_LANTERN_BIN"] ?? DEFAULT_LANTERN_BIN;
   const lanternUrl = env["PI_QA_LANTERN_URL"] ?? "http://127.0.0.1:4317";
@@ -195,7 +231,11 @@ export async function createRegistry(repoRoot: string, env: RegistryEnv = proces
   } else {
     lanternReason = `READY: ${lanternBin} → ${lanternUrl}`;
     const openSession = async (): Promise<LanternSession> => {
-      const client = new StdioMcpClient({ command: lanternBin, args: ["mcp"], env: { LIGHTING_SERVICE_URL: lanternUrl } });
+      const client = new StdioMcpClient({
+        command: lanternBin,
+        args: ["mcp"],
+        env: { LIGHTING_SERVICE_URL: lanternUrl },
+      });
       await client.start();
       const caller = mcpCaller(client, "lantern");
       const sessionClient = new LanternClient(caller);
@@ -226,10 +266,16 @@ export async function createRegistry(repoRoot: string, env: RegistryEnv = proces
       `bridge present (${reuseryBin}) but REUSERY_DATABASE_URL is not set in this process; export it (see Reusery .env.example) to enable`,
     );
   } else {
-    reusery = new ReuseryClient(new StdioReuseryMcp(reuseryBin, dbUrl, repoRoot));
+    reusery = new ReuseryClient(
+      new StdioReuseryMcp(reuseryBin, dbUrl, repoRoot),
+    );
   }
 
-  const telltail = new TelltailClient(await resolveTelltailCommand({ repoDir: env["TELLTAIL_REPO"] ?? DEFAULT_TELLTAIL_REPO }));
+  const telltail = new TelltailClient(
+    await resolveTelltailCommand({
+      repoDir: env["TELLTAIL_REPO"] ?? DEFAULT_TELLTAIL_REPO,
+    }),
+  );
   const tethers = new TethersClient(await resolveTethersCommand());
 
   return {
@@ -239,6 +285,11 @@ export async function createRegistry(repoRoot: string, env: RegistryEnv = proces
     reusery,
     telltail,
     tethers,
-    describeAll: () => [lantern.describe(), reusery.describe(), telltail.describe(), tethers.describe()],
+    describeAll: () => [
+      lantern.describe(),
+      reusery.describe(),
+      telltail.describe(),
+      tethers.describe(),
+    ],
   };
 }

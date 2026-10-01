@@ -31,7 +31,9 @@ export async function structuralSearch(
   } = {},
 ): Promise<StructuralSearchResult> {
   const maxHits = opts.maxHits ?? 30;
-  const resolved = opts.resolver ? await opts.resolver() : await resolveAstGrep();
+  const resolved = opts.resolver
+    ? await opts.resolver()
+    : await resolveAstGrep();
   if (!resolved) {
     return {
       executed: false,

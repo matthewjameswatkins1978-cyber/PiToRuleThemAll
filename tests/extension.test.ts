@@ -31,7 +31,11 @@ function fakePi(): {
     registerTool: (def) => {
       tools.set(def.name, def);
     },
-    getAllTools: () => [{ name: "read" }, { name: "mcp__lantern__lantern_context" }, { name: "mcp__lantern__lantern_why" }],
+    getAllTools: () => [
+      { name: "read" },
+      { name: "mcp__lantern__lantern_context" },
+      { name: "mcp__lantern__lantern_why" },
+    ],
   };
   return { pi, commands, tools };
 }
@@ -56,20 +60,39 @@ function fakeRegistry(opts: { lanternReady: boolean }): IntegrationRegistry {
   const lanternCaller = opts.lanternReady
     ? {
         call: async (tool: string) => {
-          if (tool === "lantern_status") return { ok: true, data: { ready: { ready: true }, version: { version: "0.1.0" } } };
+          if (tool === "lantern_status")
+            return {
+              ok: true,
+              data: { ready: { ready: true }, version: { version: "0.1.0" } },
+            };
           if (tool === "lantern_context")
             return {
               ok: true,
               data: {
                 context: {
                   id: "ctx-1",
-                  current_beliefs: [{ id: "b1", subject_key: "s", predicate_key: "p", current_value: "v" }],
-                  soft_memories: [{ id: "m1", kind: "rejected_path", content: "no redis" }],
+                  current_beliefs: [
+                    {
+                      id: "b1",
+                      subject_key: "s",
+                      predicate_key: "p",
+                      current_value: "v",
+                    },
+                  ],
+                  soft_memories: [
+                    { id: "m1", kind: "rejected_path", content: "no redis" },
+                  ],
                 },
               },
             };
           if (tool === "lantern_why")
-            return { ok: true, data: { memory_item: { id: "m1" }, provenance: { holder_actor_id: "matthew" } } };
+            return {
+              ok: true,
+              data: {
+                memory_item: { id: "m1" },
+                provenance: { holder_actor_id: "matthew" },
+              },
+            };
           return { ok: false, error: "unknown" };
         },
       }
@@ -77,12 +100,20 @@ function fakeRegistry(opts: { lanternReady: boolean }): IntegrationRegistry {
   const lantern = new LanternClient(lanternCaller);
   return {
     lantern,
-    lanternSession: async () => (lanternCaller ? { client: new LanternClient(lanternCaller), close: async () => {} } : null),
+    lanternSession: async () =>
+      lanternCaller
+        ? { client: new LanternClient(lanternCaller), close: async () => {} }
+        : null,
     lanternReason: opts.lanternReady ? "READY (fake)" : "NOT_CONFIGURED (fake)",
     reusery: new ReuseryClient(null),
     telltail: new TelltailClient(null),
     tethers: new TethersClient(null),
-    describeAll: () => [lantern.describe(), new ReuseryClient(null).describe(), new TelltailClient(null).describe(), new TethersClient(null).describe()],
+    describeAll: () => [
+      lantern.describe(),
+      new ReuseryClient(null).describe(),
+      new TelltailClient(null).describe(),
+      new TethersClient(null).describe(),
+    ],
   };
 }
 
@@ -108,28 +139,49 @@ describe("extension registration", () => {
 
 describe("matchLanternTool (defect G)", () => {
   it("matches across namespace shapes by known suffix", () => {
-    assert.equal(matchLanternTool("mcp__lantern__lantern_status", "lantern_status"), true);
-    assert.equal(matchLanternTool("mcp__lantern_keeper__lantern_status", "lantern_status"), true);
+    assert.equal(
+      matchLanternTool("mcp__lantern__lantern_status", "lantern_status"),
+      true,
+    );
+    assert.equal(
+      matchLanternTool("mcp__lantern_keeper__lantern_status", "lantern_status"),
+      true,
+    );
     assert.equal(matchLanternTool("lantern_status", "lantern_status"), true);
-    assert.equal(matchLanternTool("mcp__lantern__lantern_context", "lantern_status"), false);
-    assert.equal(matchLanternTool("mcp__other__status", "lantern_status"), false);
+    assert.equal(
+      matchLanternTool("mcp__lantern__lantern_context", "lantern_status"),
+      false,
+    );
+    assert.equal(
+      matchLanternTool("mcp__other__status", "lantern_status"),
+      false,
+    );
   });
   it("findLanternTools resolves both server namings", () => {
-    const found = findLanternTools([{ name: "read" }, { name: "mcp__lantern__lantern_context" }, { name: "mcp__lantern_keeper__lantern_why" }]);
-    assert.deepEqual(found, ["mcp__lantern__lantern_context", "mcp__lantern_keeper__lantern_why"]);
+    const found = findLanternTools([
+      { name: "read" },
+      { name: "mcp__lantern__lantern_context" },
+      { name: "mcp__lantern_keeper__lantern_why" },
+    ]);
+    assert.deepEqual(found, [
+      "mcp__lantern__lantern_context",
+      "mcp__lantern_keeper__lantern_why",
+    ]);
   });
 });
 
 describe("splitArgs (defect M)", () => {
   it("preserves quoted Windows paths", () => {
-    assert.deepEqual(splitArgs('--report "D:\\Some Folder\\final report.txt" --require-push'), [
-      "--report",
-      "D:\\Some Folder\\final report.txt",
-      "--require-push",
-    ]);
+    assert.deepEqual(
+      splitArgs('--report "D:\\Some Folder\\final report.txt" --require-push'),
+      ["--report", "D:\\Some Folder\\final report.txt", "--require-push"],
+    );
   });
   it("splits plain flags", () => {
-    assert.deepEqual(splitArgs("abc123 --claim-tests"), ["abc123", "--claim-tests"]);
+    assert.deepEqual(splitArgs("abc123 --claim-tests"), [
+      "abc123",
+      "--claim-tests",
+    ]);
   });
   it("empty input yields no tokens", () => {
     assert.deepEqual(splitArgs("   "), []);
@@ -138,7 +190,8 @@ describe("splitArgs (defect M)", () => {
 
 describe("parsePreflightArgs (defect L)", () => {
   it("preserves multiline acceptance IDs and sections", () => {
-    const raw = "Add restart-safe config.\nAcceptance:\n- A1: value survives restart\n- A2: corrupt file errors cleanly\nConstraints:\n- no new deps\nSeams: persistence";
+    const raw =
+      "Add restart-safe config.\nAcceptance:\n- A1: value survives restart\n- A2: corrupt file errors cleanly\nConstraints:\n- no new deps\nSeams: persistence";
     const p = parsePreflightArgs(raw);
     assert.equal(p.rawRequest, "Add restart-safe config.");
     assert.ok(p.rawRequest.includes("\n") === false);
@@ -155,7 +208,12 @@ describe("/keeper one-action workflows (defect F)", () => {
   it("context returns a real pack in one action", async () => {
     const { pi } = fakePi();
     const { ctx, seen } = fakeCtx();
-    await handleKeeper("context Terror Bats persistence decisions", ctx, pi, readyFactory);
+    await handleKeeper(
+      "context Terror Bats persistence decisions",
+      ctx,
+      pi,
+      readyFactory,
+    );
     const out = seen.join("\n");
     assert.ok(out.includes("ctx-1"));
     assert.ok(out.includes("no redis"));
@@ -184,7 +242,12 @@ describe("/qa help", () => {
     const { ctx, seen } = fakeCtx();
     await commands.get("qa")!("help", ctx);
     const out = seen.join("\n");
-    assert.ok(out.includes("preflight") && out.includes("verify") && out.includes("receipt") && out.includes("doctor"));
+    assert.ok(
+      out.includes("preflight") &&
+        out.includes("verify") &&
+        out.includes("receipt") &&
+        out.includes("doctor"),
+    );
   });
 });
 
@@ -195,11 +258,16 @@ describe("toolContextLanternCaller", () => {
       ui: { notify: () => {}, confirm: async () => true },
       tools: [{ name: "mcp__lantern_keeper__lantern_context" }],
       executeTool: async () => ({
-        result: { content: [{ type: "text", text: JSON.stringify({ id: "pack-1" }) }] },
+        result: {
+          content: [{ type: "text", text: JSON.stringify({ id: "pack-1" }) }],
+        },
         isError: false,
       }),
     };
-    const caller = toolContextLanternCaller(["mcp__lantern_keeper__lantern_context"], toolCtx);
+    const caller = toolContextLanternCaller(
+      ["mcp__lantern_keeper__lantern_context"],
+      toolCtx,
+    );
     const r = await caller.call("lantern_context", { query: "x" });
     assert.equal(r.ok, true);
     assert.equal((r.data as { id: string }).id, "pack-1");

@@ -16,19 +16,30 @@ export interface ExecutableResolution {
   source: string;
 }
 
-export async function resolveAstGrep(opts: {
-  which?: (exe: string) => Promise<string | null>;
-} = {}): Promise<ExecutableResolution | null> {
+export async function resolveAstGrep(
+  opts: {
+    which?: (exe: string) => Promise<string | null>;
+  } = {},
+): Promise<ExecutableResolution | null> {
   if (cached !== undefined) return cached;
   const which =
     opts.which ??
     (async (exe: string) => {
-      const probe = await runCommand(process.platform === "win32" ? "where.exe" : "which", [exe], {
-        timeoutMs: 10_000,
-        maxChars: 1024,
-      });
+      const probe = await runCommand(
+        process.platform === "win32" ? "where.exe" : "which",
+        [exe],
+        {
+          timeoutMs: 10_000,
+          maxChars: 1024,
+        },
+      );
       if (probe.exitCode !== 0) return null;
-      return probe.stdout.split("\n").map((l) => l.trim()).filter(Boolean)[0] ?? null;
+      return (
+        probe.stdout
+          .split("\n")
+          .map((l) => l.trim())
+          .filter(Boolean)[0] ?? null
+      );
     });
   for (const candidate of ["sg", "ast-grep"]) {
     const found = await which(candidate);

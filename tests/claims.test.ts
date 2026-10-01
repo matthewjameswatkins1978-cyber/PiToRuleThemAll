@@ -36,7 +36,11 @@ describe("reconcileBuilderClaims", () => {
     assert.equal(r.classification, "CONTRADICTED");
   });
   it("tests passed with no QA execution → UNSUPPORTED", () => {
-    const r = one("tests passed", { ...base, testsExecuted: false, testsExitCode: null });
+    const r = one("tests passed", {
+      ...base,
+      testsExecuted: false,
+      testsExitCode: null,
+    });
     assert.equal(r.classification, "UNSUPPORTED");
   });
   it("tests passed + failing QA run → CONTRADICTED", () => {
@@ -45,14 +49,20 @@ describe("reconcileBuilderClaims", () => {
   });
   it("format passed + exit 0 → SUPPORTED; exit 1 → CONTRADICTED", () => {
     assert.equal(one("format passed").classification, "SUPPORTED");
-    assert.equal(one("format clean", { ...base, formatExitCode: 1 }).classification, "CONTRADICTED");
+    assert.equal(
+      one("format clean", { ...base, formatExitCode: 1 }).classification,
+      "CONTRADICTED",
+    );
   });
   it("typecheck passed → SUPPORTED", () => {
     assert.equal(one("typecheck passed").classification, "SUPPORTED");
   });
   it("tree clean on clean tree → SUPPORTED; on dirty → CONTRADICTED", () => {
     assert.equal(one("tree clean").classification, "SUPPORTED");
-    assert.equal(one("tree clean", { ...base, dirty: true }).classification, "CONTRADICTED");
+    assert.equal(
+      one("tree clean", { ...base, dirty: true }).classification,
+      "CONTRADICTED",
+    );
   });
   it("branch main → SUPPORTED; branch other → CONTRADICTED", () => {
     assert.equal(one("on branch main").classification, "SUPPORTED");
@@ -65,7 +75,8 @@ describe("reconcileBuilderClaims", () => {
   it("pushed + remote verified → SUPPORTED; diverged → CONTRADICTED", () => {
     assert.equal(one("pushed").classification, "SUPPORTED");
     assert.equal(
-      one("pushed", { ...base, remoteSha: "zzz", remoteVerified: false }).classification,
+      one("pushed", { ...base, remoteSha: "zzz", remoteVerified: false })
+        .classification,
       "CONTRADICTED",
     );
   });
@@ -80,7 +91,10 @@ describe("reconcileBuilderClaims", () => {
     assert.equal(one("ran `npm test`").classification, "SUPPORTED");
   });
   it("semantic claims stay NOT_CHECKED", () => {
-    assert.equal(one("cross-platform behaviour proven").classification, "NOT_CHECKED");
+    assert.equal(
+      one("cross-platform behaviour proven").classification,
+      "NOT_CHECKED",
+    );
     assert.equal(one("production ready").classification, "NOT_CHECKED");
   });
 });

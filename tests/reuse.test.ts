@@ -42,7 +42,10 @@ describe("structuralSearch", () => {
     try {
       const r = await structuralSearch(dir, "fetch($$$)", {
         lang: "ts",
-        resolver: async () => ({ exe: "definitely-not-ast-grep-zzz", source: "fake" }),
+        resolver: async () => ({
+          exe: "definitely-not-ast-grep-zzz",
+          source: "fake",
+        }),
       });
       assert.equal(r.executed, false);
       assert.ok(r.error?.includes("definitely-not-ast-grep-zzz"));
@@ -53,7 +56,9 @@ describe("structuralSearch", () => {
   it("injectable resolver: null means neither executable exists", async () => {
     const dir = await makeTempRepo({ "a.ts": "const x = 1;\n" });
     try {
-      const r = await structuralSearch(dir, "x", { resolver: async () => null });
+      const r = await structuralSearch(dir, "x", {
+        resolver: async () => null,
+      });
       assert.equal(r.executed, false);
       assert.ok(r.error?.includes("neither sg nor ast-grep"));
     } finally {
@@ -61,16 +66,23 @@ describe("structuralSearch", () => {
     }
   });
   it("LIVE smoke: installed sg/ast-grep must EXECUTE, never UNAVAILABLE", async () => {
-    const { resolveAstGrep, resetAstGrepCache } = await import("../src/reuse/tool-discovery.js");
+    const { resolveAstGrep, resetAstGrepCache } =
+      await import("../src/reuse/tool-discovery.js");
     resetAstGrepCache();
     const resolved = await resolveAstGrep();
     if (!resolved) {
-      assert.fail("neither sg nor ast-grep on PATH: install one or this suite cannot prove structural search");
+      assert.fail(
+        "neither sg nor ast-grep on PATH: install one or this suite cannot prove structural search",
+      );
     }
     const dir = await makeTempRepo({ "a.ts": "const x = fetch(url);\n" });
     try {
       const r = await structuralSearch(dir, "fetch($$$)", { lang: "ts" });
-      assert.equal(r.executed, true, `expected EXECUTED via ${resolved.exe}, got: ${r.error}`);
+      assert.equal(
+        r.executed,
+        true,
+        `expected EXECUTED via ${resolved.exe}, got: ${r.error}`,
+      );
       assert.ok(r.hits.length > 0);
       assert.ok(r.executable?.includes(resolved.exe));
     } finally {

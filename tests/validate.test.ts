@@ -100,7 +100,11 @@ describe("validateReceipt", () => {
       ...goodReceipt,
       integrations: {
         lantern: { state: "READY", evidence_grade: "EXECUTED", reason: "ok" },
-        reusery: { state: "NOT_NEEDED", evidence_grade: "UNAVAILABLE", reason: "gated off" },
+        reusery: {
+          state: "NOT_NEEDED",
+          evidence_grade: "UNAVAILABLE",
+          reason: "gated off",
+        },
       },
     });
     assert.equal(r.ok, true);
@@ -108,7 +112,9 @@ describe("validateReceipt", () => {
   it("rejects unknown integration states", () => {
     const r = validateReceipt({
       ...goodReceipt,
-      integrations: { lantern: { state: "MAYBE", evidence_grade: "EXECUTED", reason: "x" } },
+      integrations: {
+        lantern: { state: "MAYBE", evidence_grade: "EXECUTED", reason: "x" },
+      },
     });
     assert.equal(r.ok, false);
   });

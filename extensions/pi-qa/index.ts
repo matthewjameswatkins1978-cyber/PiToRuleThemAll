@@ -24,12 +24,23 @@
 
 import { Type } from "typebox";
 import { LANTERN_TOOLS } from "../../src/adapters/lantern.js";
-import { createRegistry, type IntegrationRegistry } from "../../src/adapters/registry.js";
+import {
+  createRegistry,
+  type IntegrationRegistry,
+} from "../../src/adapters/registry.js";
 import { doctor, renderDoctor } from "../../src/qa/doctor.js";
-import { latestReceipt, loadReceipt, renderReceiptCompact } from "../../src/qa/receipt.js";
+import {
+  latestReceipt,
+  loadReceipt,
+  renderReceiptCompact,
+} from "../../src/qa/receipt.js";
 import { preflight, type PreflightInput } from "../../src/qa/preflight.js";
 import { verify } from "../../src/qa/verify.js";
-import type { PiApi, PiCommandContext, PiToolCallContext } from "../../src/pi-shim.js";
+import type {
+  PiApi,
+  PiCommandContext,
+  PiToolCallContext,
+} from "../../src/pi-shim.js";
 
 /**
  * Match a registered Pi tool name to a Lantern MCP tool by KNOWN SUFFIX.
@@ -39,29 +50,46 @@ import type { PiApi, PiCommandContext, PiToolCallContext } from "../../src/pi-sh
  *   mcp__lantern_keeper__lantern_status → lantern_status
  *   lantern_status                      → lantern_status
  */
-export function matchLanternTool(registeredName: string, short: string): boolean {
+export function matchLanternTool(
+  registeredName: string,
+  short: string,
+): boolean {
   const suffix = registeredName.split("__").pop() ?? registeredName;
   return suffix === short;
 }
 
 export function findLanternTools(allTools: { name: string }[]): string[] {
   const shorts = new Set<string>(LANTERN_TOOLS as unknown as string[]);
-  return allTools.map((t) => t.name).filter((n) => shorts.has(n.split("__").pop() ?? n));
+  return allTools
+    .map((t) => t.name)
+    .filter((n) => shorts.has(n.split("__").pop() ?? n));
 }
 
 /** Caller routing Lantern calls through ctx.executeTool (tool path only). */
 export function toolContextLanternCaller(
   toolNames: string[],
   ctx: PiToolCallContext,
-): { call(tool: string, args: Record<string, unknown>): Promise<{ ok: boolean; data?: unknown; error?: string }> } {
+): {
+  call(
+    tool: string,
+    args: Record<string, unknown>,
+  ): Promise<{ ok: boolean; data?: unknown; error?: string }>;
+} {
   return {
     call: async (tool, args) => {
       const full = toolNames.find((n) => matchLanternTool(n, tool));
-      if (!full) return { ok: false, error: `Lantern tool '${tool}' not connected in this session` };
+      if (!full)
+        return {
+          ok: false,
+          error: `Lantern tool '${tool}' not connected in this session`,
+        };
       try {
         const out = await ctx.executeTool(full, args);
-        if (out.isError) return { ok: false, error: "lantern tool returned isError" };
-        const text = out.result.content.map((p) => (typeof p.text === "string" ? p.text : "")).join("\n");
+        if (out.isError)
+          return { ok: false, error: "lantern tool returned isError" };
+        const text = out.result.content
+          .map((p) => (typeof p.text === "string" ? p.text : ""))
+          .join("\n");
         try {
           return { ok: true, data: JSON.parse(text) as unknown };
         } catch {
@@ -113,7 +141,9 @@ export function splitArgs(input: string): string[] {
   return out;
 }
 
-export function parsePreflightArgs(raw: string): Omit<PreflightInput, "normalizedIntent"> & { normalizedIntent: string } {
+export function parsePreflightArgs(
+  raw: string,
+): Omit<PreflightInput, "normalizedIntent"> & { normalizedIntent: string } {
   const lines = raw.split("\n");
   const requestLines: string[] = [];
   const acceptance: { id: string; requirement: string }[] = [];
@@ -142,7 +172,10 @@ export function parsePreflightArgs(raw: string): Omit<PreflightInput, "normalize
       const m = /^(A\d+):\s*(.+)$/.exec(body);
       acceptance.push(
         m
-          ? { id: m[1] ?? `A${acceptance.length + 1}`, requirement: m[2] ?? body }
+          ? {
+              id: m[1] ?? `A${acceptance.length + 1}`,
+              requirement: m[2] ?? body,
+            }
           : { id: `A${acceptance.length + 1}`, requirement: body },
       );
     } else if (section === "constraints" && /^[-*]\s+/.test(t)) {
@@ -153,9 +186,18 @@ export function parsePreflightArgs(raw: string): Omit<PreflightInput, "normalize
   }
   const rawRequest = requestLines.join("\n").trim() || raw.trim();
   if (acceptance.length === 0) {
-    acceptance.push({ id: "A1", requirement: rawRequest.slice(0, 500) || "(empty request)" });
+    acceptance.push({
+      id: "A1",
+      requirement: rawRequest.slice(0, 500) || "(empty request)",
+    });
   }
-  return { rawRequest, normalizedIntent: rawRequest, acceptance, constraints, consequentialSeams: seams };
+  return {
+    rawRequest,
+    normalizedIntent: rawRequest,
+    acceptance,
+    constraints,
+    consequentialSeams: seams,
+  };
 }
 
 export type RegistryFactory = (cwd: string) => Promise<IntegrationRegistry>;
@@ -190,7 +232,7 @@ export async function handleQa(
     ctx.ui.notify(
       [
         "/qa preflight <request> — freeze intent into QA spec revision 1 (multiline ok)",
-        "/qa verify [specId] [--report \"path\"] [--claim-tests] [--require-push] [--telltail] [--reusery] [--spec-only]",
+        '/qa verify [specId] [--report "path"] [--claim-tests] [--require-push] [--telltail] [--reusery] [--spec-only]',
         "/qa receipt [id] [--json] — compact (default) or machine-readable receipt",
         "/qa doctor [--smoke] — integration diagnostics",
       ].join("\n"),
@@ -202,22 +244,29 @@ export async function handleQa(
   if (sub === "preflight") {
     const text = rest.replace(/^\s+/, "");
     if (!text) {
-      ctx.ui.notify("Usage: /qa preflight <raw request> [Acceptance: ...] [Constraints: ...] [Seams: ...]", "error");
+      ctx.ui.notify(
+        "Usage: /qa preflight <raw request> [Acceptance: ...] [Constraints: ...] [Seams: ...]",
+        "error",
+      );
       return;
     }
     const input = parsePreflightArgs(text);
-    await withRegistry(repoRoot, async (reg) => {
-      const session = await reg.lanternSession();
-      try {
-        const report = await preflight(repoRoot, input, {
-          lantern: session ? session.client : reg.lantern,
-          reusery: reg.reusery,
-        });
-        ctx.ui.notify(report.text, "info");
-      } finally {
-        await session?.close();
-      }
-    }, factory);
+    await withRegistry(
+      repoRoot,
+      async (reg) => {
+        const session = await reg.lanternSession();
+        try {
+          const report = await preflight(repoRoot, input, {
+            lantern: session ? session.client : reg.lantern,
+            reusery: reg.reusery,
+          });
+          ctx.ui.notify(report.text, "info");
+        } finally {
+          await session?.close();
+        }
+      },
+      factory,
+    );
     return;
   }
 
@@ -261,35 +310,44 @@ export async function handleQa(
         return;
       }
     }
-    await withRegistry(repoRoot, async (reg) => {
-      const session = await reg.lanternSession();
-      try {
-        const outcome = await verify(
-          repoRoot,
-          { lantern: session ? session.client : reg.lantern, reusery: reg.reusery, telltail: reg.telltail, tethers: reg.tethers },
-          {
-            specId,
-            builderReport,
-            builderClaimsTestsPassed: claimTests,
-            requireRemotePush: requirePush,
-            telltail,
-            reusery,
-            specOnly,
-            agentPromptPath: "agents/verifier.md",
-          },
-        );
-        ctx.ui.notify(
-          [
-            renderReceiptCompact(outcome.receipt),
-            `Receipt file: ${outcome.receiptFile}`,
-            `Verifier isolation: fresh pi process (--no-session), builder narrative withheld=${outcome.promptWithheld}`,
-          ].join("\n\n"),
-          outcome.receipt.verdict === "FAIL" ? "error" : "info",
-        );
-      } finally {
-        await session?.close();
-      }
-    }, factory);
+    await withRegistry(
+      repoRoot,
+      async (reg) => {
+        const session = await reg.lanternSession();
+        try {
+          const outcome = await verify(
+            repoRoot,
+            {
+              lantern: session ? session.client : reg.lantern,
+              reusery: reg.reusery,
+              telltail: reg.telltail,
+              tethers: reg.tethers,
+            },
+            {
+              specId,
+              builderReport,
+              builderClaimsTestsPassed: claimTests,
+              requireRemotePush: requirePush,
+              telltail,
+              reusery,
+              specOnly,
+              agentPromptPath: "agents/verifier.md",
+            },
+          );
+          ctx.ui.notify(
+            [
+              renderReceiptCompact(outcome.receipt),
+              `Receipt file: ${outcome.receiptFile}`,
+              `Verifier isolation: fresh pi process (--no-session), builder narrative withheld=${outcome.promptWithheld}`,
+            ].join("\n\n"),
+            outcome.receipt.verdict === "FAIL" ? "error" : "info",
+          );
+        } finally {
+          await session?.close();
+        }
+      },
+      factory,
+    );
     return;
   }
 
@@ -302,43 +360,57 @@ export async function handleQa(
       ctx.ui.notify("No QA receipts yet. Run /qa verify first.", "error");
       return;
     }
-    ctx.ui.notify(asJson ? JSON.stringify(r, null, 2) : renderReceiptCompact(r), "info");
+    ctx.ui.notify(
+      asJson ? JSON.stringify(r, null, 2) : renderReceiptCompact(r),
+      "info",
+    );
     return;
   }
 
   if (sub === "doctor") {
     const smoke = splitArgs(rest).includes("--smoke");
-    await withRegistry(repoRoot, async (reg) => {
-      const rows = await doctor({
-        registry: reg,
-        smokeVerifier: smoke
-          ? async () => {
-              const { runIndependentReview } = await import("../../src/qa/independent-review.js");
-              try {
-                const r = await runIndependentReview(
-                  repoRoot,
-                  {
-                    spec: { id: "doctor-smoke" },
-                    trustedRules: { ref: "smoke", files: {} },
-                    snapshot: {},
-                    diff: { files: [], text: "", truncated: false },
-                    testEvidence: {},
-                    reuseEvidence: {},
-                    lanternPack: {},
-                    agentPromptPath: "agents/verifier.md",
-                  },
-                  { timeoutMs: 300_000 },
-                );
-                void r;
-                return { ok: true, detail: "fresh pi --no-session process completed" };
-              } catch (e) {
-                return { ok: false, detail: `verifier smoke failed: ${(e as Error).message}` };
+    await withRegistry(
+      repoRoot,
+      async (reg) => {
+        const rows = await doctor({
+          registry: reg,
+          smokeVerifier: smoke
+            ? async () => {
+                const { runIndependentReview } =
+                  await import("../../src/qa/independent-review.js");
+                try {
+                  const r = await runIndependentReview(
+                    repoRoot,
+                    {
+                      spec: { id: "doctor-smoke" },
+                      trustedRules: { ref: "smoke", files: {} },
+                      snapshot: {},
+                      diff: { files: [], text: "", truncated: false },
+                      testEvidence: {},
+                      reuseEvidence: {},
+                      lanternPack: {},
+                      agentPromptPath: "agents/verifier.md",
+                    },
+                    { timeoutMs: 300_000 },
+                  );
+                  void r;
+                  return {
+                    ok: true,
+                    detail: "fresh pi --no-session process completed",
+                  };
+                } catch (e) {
+                  return {
+                    ok: false,
+                    detail: `verifier smoke failed: ${(e as Error).message}`,
+                  };
+                }
               }
-            }
-          : undefined,
-      });
-      ctx.ui.notify(renderDoctor(rows), "info");
-    }, factory);
+            : undefined,
+        });
+        ctx.ui.notify(renderDoctor(rows), "info");
+      },
+      factory,
+    );
     return;
   }
 
@@ -380,11 +452,17 @@ export async function handleKeeper(
     const reg = await factory(ctx.cwd);
     const session = await reg.lanternSession();
     if (!session) {
-      ctx.ui.notify(`Lantern: ${reg.lantern.describe().state} — ${reg.lantern.describe().reason}. Not inventing memory.`, "warning");
+      ctx.ui.notify(
+        `Lantern: ${reg.lantern.describe().state} — ${reg.lantern.describe().reason}. Not inventing memory.`,
+        "warning",
+      );
       return;
     }
     try {
-      const r = await session.client.context(rest, { itemBudget: 8, tokenBudget: 2000 });
+      const r = await session.client.context(rest, {
+        itemBudget: 8,
+        tokenBudget: 2000,
+      });
       if (r.grade !== "EXECUTED") {
         ctx.ui.notify(`Lantern: UNAVAILABLE — ${r.note}`, "warning");
         return;
@@ -392,10 +470,14 @@ export async function handleKeeper(
       const p = r.pack;
       const lines = [
         `Lantern context pack ${p.id ?? "(no id)"} [EXECUTED]`,
-        ...p.decisions.slice(0, 8).map((d) => `- decision ${d.id}: ${d.summary}`),
+        ...p.decisions
+          .slice(0, 8)
+          .map((d) => `- decision ${d.id}: ${d.summary}`),
         ...p.rejectedPaths.slice(0, 5).map((c) => `- rejected: ${c}`),
         ...p.negativeConstraints.slice(0, 5).map((c) => `- constraint: ${c}`),
-        ...(p.provenance.length > 0 ? [`provenance: ${p.provenance.slice(0, 8).join(", ")}`] : []),
+        ...(p.provenance.length > 0
+          ? [`provenance: ${p.provenance.slice(0, 8).join(", ")}`]
+          : []),
       ];
       ctx.ui.notify(lines.join("\n"), "info");
     } finally {
@@ -412,7 +494,10 @@ export async function handleKeeper(
     const reg = await factory(ctx.cwd);
     const session = await reg.lanternSession();
     if (!session) {
-      ctx.ui.notify(`Lantern: ${reg.lantern.describe().state} — ${reg.lantern.describe().reason}. Not inventing memory.`, "warning");
+      ctx.ui.notify(
+        `Lantern: ${reg.lantern.describe().state} — ${reg.lantern.describe().reason}. Not inventing memory.`,
+        "warning",
+      );
       return;
     }
     try {
@@ -423,7 +508,9 @@ export async function handleKeeper(
         return;
       }
       ctx.ui.notify(
-        r.trail.length > 0 ? `Provenance for ${id} [EXECUTED]:\n${r.trail.map((t) => `- ${t}`).join("\n")}` : `No provenance trail for ${id}.`,
+        r.trail.length > 0
+          ? `Provenance for ${id} [EXECUTED]:\n${r.trail.map((t) => `- ${t}`).join("\n")}`
+          : `No provenance trail for ${id}.`,
         "info",
       );
     } finally {
@@ -432,7 +519,10 @@ export async function handleKeeper(
     return;
   }
 
-  ctx.ui.notify("Usage: /keeper [status | context <query> | why <id>]", "error");
+  ctx.ui.notify(
+    "Usage: /keeper [status | context <query> | why <id>]",
+    "error",
+  );
 }
 
 export function registerQaExtension(pi: PiApi): void {
@@ -454,8 +544,13 @@ export function registerQaExtension(pi: PiApi): void {
     execute: async (_id, params, _signal, _update, ctx) => {
       const { LanternClient } = await import("../../src/adapters/lantern.js");
       const tools = findLanternTools(ctx.tools);
-      const client = new LanternClient(tools.length > 0 ? toolContextLanternCaller(tools, ctx) : null);
-      const r = await client.context(String(params["query"] ?? ""), { itemBudget: 8, tokenBudget: 2000 });
+      const client = new LanternClient(
+        tools.length > 0 ? toolContextLanternCaller(tools, ctx) : null,
+      );
+      const r = await client.context(String(params["query"] ?? ""), {
+        itemBudget: 8,
+        tokenBudget: 2000,
+      });
       return {
         content: [
           {
@@ -471,15 +566,23 @@ export function registerQaExtension(pi: PiApi): void {
   pi.registerTool({
     name: "keeper_why",
     label: "Keeper why",
-    description: "Provenance trail for a Lantern memory/belief id. Reports UNAVAILABLE when Lantern is not connected.",
+    description:
+      "Provenance trail for a Lantern memory/belief id. Reports UNAVAILABLE when Lantern is not connected.",
     parameters: Type.Object({ id: Type.String() }),
     execute: async (_id, params, _signal, _update, ctx) => {
       const { LanternClient } = await import("../../src/adapters/lantern.js");
       const tools = findLanternTools(ctx.tools);
-      const client = new LanternClient(tools.length > 0 ? toolContextLanternCaller(tools, ctx) : null);
+      const client = new LanternClient(
+        tools.length > 0 ? toolContextLanternCaller(tools, ctx) : null,
+      );
       const r = await client.why({ memory_id: String(params["id"] ?? "") });
       return {
-        content: [{ type: "text", text: `ok=${r.ok} note=${r.error ?? "provenance retrieved"}\n${r.trail.join("\n").slice(0, 4000)}` }],
+        content: [
+          {
+            type: "text",
+            text: `ok=${r.ok} note=${r.error ?? "provenance retrieved"}\n${r.trail.join("\n").slice(0, 4000)}`,
+          },
+        ],
         details: { ok: r.ok, trail: r.trail },
       };
     },

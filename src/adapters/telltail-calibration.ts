@@ -24,30 +24,75 @@ export interface CalibrationOutcome {
   note: string;
 }
 
-export async function runCalibration(repoRoot: string, client: TelltailClient): Promise<CalibrationOutcome> {
+export async function runCalibration(
+  repoRoot: string,
+  client: TelltailClient,
+): Promise<CalibrationOutcome> {
   if (!client.configured) {
-    return { grade: "UNAVAILABLE", calibrationPassed: false, outcome: "unknown", findings: [], note: "telltail not configured" };
+    return {
+      grade: "UNAVAILABLE",
+      calibrationPassed: false,
+      outcome: "unknown",
+      findings: [],
+      note: "telltail not configured",
+    };
   }
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-qa-cal-"));
   try {
-    const fixtureDir = path.join(repoRoot, "fixtures", "telltail", "qa-calibration");
+    const fixtureDir = path.join(
+      repoRoot,
+      "fixtures",
+      "telltail",
+      "qa-calibration",
+    );
     const scenario = path.join(fixtureDir, "scenario.json");
     const worker = path.join(fixtureDir, "worker.mjs");
     if (!fs.existsSync(scenario) || !fs.existsSync(worker)) {
-      return { grade: "UNAVAILABLE", calibrationPassed: false, outcome: "unknown", findings: [], note: "calibration fixtures missing" };
+      return {
+        grade: "UNAVAILABLE",
+        calibrationPassed: false,
+        outcome: "unknown",
+        findings: [],
+        note: "calibration fixtures missing",
+      };
     }
     const trace = path.join(dir, "shift.jsonl");
-    const run = await runCommand("node", [worker, trace], { cwd: dir, timeoutMs: 60_000 });
+    const run = await runCommand("node", [worker, trace], {
+      cwd: dir,
+      timeoutMs: 60_000,
+    });
     if (run.exitCode !== 0) {
-      return { grade: "UNAVAILABLE", calibrationPassed: false, outcome: "unknown", findings: [], note: `calibration worker failed: ${run.stderr.slice(0, 200)}` };
+      return {
+        grade: "UNAVAILABLE",
+        calibrationPassed: false,
+        outcome: "unknown",
+        findings: [],
+        note: `calibration worker failed: ${run.stderr.slice(0, 200)}`,
+      };
     }
     const verified = await client.traceVerify(trace);
     if (!verified.ok) {
-      return { grade: "UNAVAILABLE", calibrationPassed: false, outcome: "unknown", findings: [], note: `trace chain invalid: ${verified.error}` };
+      return {
+        grade: "UNAVAILABLE",
+        calibrationPassed: false,
+        outcome: "unknown",
+        findings: [],
+        note: `trace chain invalid: ${verified.error}`,
+      };
     }
-    const result = await client.analyze({ scenario, trace, worker: "qa-calibration-worker" });
+    const result = await client.analyze({
+      scenario,
+      trace,
+      worker: "qa-calibration-worker",
+    });
     if (result.grade !== "EXECUTED") {
-      return { grade: "UNAVAILABLE", calibrationPassed: false, outcome: result.outcome, findings: [], note: result.note };
+      return {
+        grade: "UNAVAILABLE",
+        calibrationPassed: false,
+        outcome: result.outcome,
+        findings: [],
+        note: result.note,
+      };
     }
     const codes = result.findings.map((f) => f.code);
     const passed = codes.includes("false_success");

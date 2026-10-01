@@ -14,7 +14,10 @@
 
 import { runCommand } from "../evidence/commands.js";
 import type { EvidenceGrade } from "../qa/types.js";
-import type { IntegrationDescriptor, IntegrationState } from "./integration-state.js";
+import type {
+  IntegrationDescriptor,
+  IntegrationState,
+} from "./integration-state.js";
 
 export interface StopRecommendation {
   reason: string;
@@ -33,25 +36,37 @@ const KNOWN_INSTALLS = [
   "C:\\Users\\Matmus\\AppData\\Local\\Programs\\Tethers\\0.8.0\\bin\\tethers.exe",
 ];
 
-export async function resolveTethersCommand(opts: {
-  which?: (exe: string) => Promise<string | null>;
-} = {}): Promise<{ exe: string; source: string } | null> {
+export async function resolveTethersCommand(
+  opts: {
+    which?: (exe: string) => Promise<string | null>;
+  } = {},
+): Promise<{ exe: string; source: string } | null> {
   const which =
     opts.which ??
     (async (exe: string) => {
-      const probe = await runCommand(process.platform === "win32" ? "where.exe" : "which", [exe], {
-        timeoutMs: 10_000,
-        maxChars: 1024,
-      });
+      const probe = await runCommand(
+        process.platform === "win32" ? "where.exe" : "which",
+        [exe],
+        {
+          timeoutMs: 10_000,
+          maxChars: 1024,
+        },
+      );
       if (probe.exitCode !== 0) return null;
-      return probe.stdout.split("\n").map((l) => l.trim()).filter(Boolean)[0] ?? null;
+      return (
+        probe.stdout
+          .split("\n")
+          .map((l) => l.trim())
+          .filter(Boolean)[0] ?? null
+      );
     });
   const bin = await which("tethers");
   if (bin) return { exe: bin, source: `tethers on PATH (${bin})` };
   const fs = await import("node:fs");
   for (const cand of KNOWN_INSTALLS) {
     try {
-      if (fs.existsSync(cand)) return { exe: cand, source: `known install (${cand})` };
+      if (fs.existsSync(cand))
+        return { exe: cand, source: `known install (${cand})` };
     } catch {
       continue;
     }
@@ -79,7 +94,9 @@ export class TethersClient {
     return {
       name: "tethers",
       state: this.cmd ? this.state : "NOT_CONFIGURED",
-      reason: this.cmd ? this.stateReason : "no tethers CLI (PATH or known install)",
+      reason: this.cmd
+        ? this.stateReason
+        : "no tethers CLI (PATH or known install)",
       grade: this.state === "READY" ? "EXECUTED" : "UNAVAILABLE",
       version: this.version,
       executable: this.cmd?.exe,
@@ -92,7 +109,10 @@ export class TethersClient {
       this.state = "NOT_CONFIGURED";
       return { ok: false, version: "", detail: "tethers CLI not resolved" };
     }
-    const r = await runCommand(this.cmd.exe, ["describe", "--json"], { timeoutMs: 30_000, maxChars: 8192 });
+    const r = await runCommand(this.cmd.exe, ["describe", "--json"], {
+      timeoutMs: 30_000,
+      maxChars: 8192,
+    });
     if (r.exitCode !== 0) {
       this.state = "UNREACHABLE";
       this.stateReason = `tethers describe failed: ${r.stderr.slice(0, 200)}`;
@@ -121,17 +141,33 @@ export class TethersClient {
     input?: string;
     hostDataRoot?: string;
   }): Promise<AuthorityState> {
-    if (!this.cmd) return { decision: "UNAVAILABLE", note: "tethers CLI not resolved" };
-    if (!opts.config || (opts.mode !== "check" && (!opts.engine || !opts.input))) {
-      return { decision: "UNAVAILABLE", note: `${opts.mode} needs explicit config${opts.mode === "check" ? "" : "/engine/input"}; QA does not invent authority configuration` };
+    if (!this.cmd)
+      return { decision: "UNAVAILABLE", note: "tethers CLI not resolved" };
+    if (
+      !opts.config ||
+      (opts.mode !== "check" && (!opts.engine || !opts.input))
+    ) {
+      return {
+        decision: "UNAVAILABLE",
+        note: `${opts.mode} needs explicit config${opts.mode === "check" ? "" : "/engine/input"}; QA does not invent authority configuration`,
+      };
     }
     const args = [opts.mode, "--config", opts.config];
     if (opts.engine) args.push("--engine", opts.engine);
     if (opts.input) args.push("--input", opts.input);
     if (opts.hostDataRoot) args.push("--host-data-root", opts.hostDataRoot);
-    const r = await runCommand(this.cmd.exe, args, { timeoutMs: 60_000, maxChars: 8192 });
+    const r = await runCommand(this.cmd.exe, args, {
+      timeoutMs: 60_000,
+      maxChars: 8192,
+    });
     const text = `${r.stdout}\n${r.stderr}`.toUpperCase();
-    const decision = /\bDENY\b/.test(text) ? "DENY" : /\bASK\b/.test(text) ? "ASK" : r.exitCode === 0 ? "ALLOW" : "UNAVAILABLE";
+    const decision = /\bDENY\b/.test(text)
+      ? "DENY"
+      : /\bASK\b/.test(text)
+        ? "ASK"
+        : r.exitCode === 0
+          ? "ALLOW"
+          : "UNAVAILABLE";
     return {
       decision,
       note: `tethers ${opts.mode} exit=${r.exitCode} → ${decision}; QA recommendation unchanged, nothing authorised by QA`,

@@ -2,7 +2,11 @@
   "_note": "Recorded shapes from lantern-keeper (lighting 0.1.0, MCP bridge structuredContent). Used for adapter mapping tests — never sent to Lantern.",
   "status": {
     "ready": { "ready": true, "reason": "durable Source storage is ready" },
-    "version": { "project": "Lantern Keeper", "service": "Lighting", "version": "0.1.0" }
+    "version": {
+      "project": "Lantern Keeper",
+      "service": "Lighting",
+      "version": "0.1.0"
+    }
   },
   "remember_soft": {
     "memory_item": {

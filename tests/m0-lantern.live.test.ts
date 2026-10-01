@@ -22,15 +22,25 @@ import { LanternClient, type LanternCaller } from "../src/adapters/lantern.js";
 import { StdioMcpClient } from "../src/adapters/transports/stdio-mcp.js";
 
 const LIVE = process.env["PI_QA_LIVE_LANTERN"] === "1";
-const BIN = process.env["PI_QA_LANTERN_BIN"] ?? "D:\\Projects\\lantern-keeper\\target\\debug\\lighting.exe";
+const BIN =
+  process.env["PI_QA_LANTERN_BIN"] ??
+  "D:\\Projects\\lantern-keeper\\target\\debug\\lighting.exe";
 const URL = process.env["PI_QA_LANTERN_URL"] ?? "http://127.0.0.1:4317";
 
 function repoRoot(): string {
   return path.resolve(import.meta.dirname, "..", "..");
 }
 
-async function openCaller(): Promise<{ caller: LanternCaller; close(): Promise<void> }> {
-  const client = new StdioMcpClient({ command: BIN, args: ["mcp"], env: { LIGHTING_SERVICE_URL: URL }, timeoutMs: 60_000 });
+async function openCaller(): Promise<{
+  caller: LanternCaller;
+  close(): Promise<void>;
+}> {
+  const client = new StdioMcpClient({
+    command: BIN,
+    args: ["mcp"],
+    env: { LIGHTING_SERVICE_URL: URL },
+    timeoutMs: 60_000,
+  });
   await client.start();
   return {
     caller: {
@@ -61,7 +71,10 @@ describe("M0 live Lantern connectivity", { skip: !LIVE }, () => {
         content,
         reconnect: async () => {
           const fresh = await openCaller();
-          return { client: new LanternClient(fresh.caller), close: fresh.close };
+          return {
+            client: new LanternClient(fresh.caller),
+            close: fresh.close,
+          };
         },
       });
     } finally {
@@ -70,7 +83,11 @@ describe("M0 live Lantern connectivity", { skip: !LIVE }, () => {
     const dir = path.join(repoRoot(), ".pi", "qa");
     fs.mkdirSync(dir, { recursive: true });
     const artifact = path.join(dir, `m0-proof-${stamp}.json`);
-    fs.writeFileSync(artifact, JSON.stringify({ marker, content, proof }, null, 2) + "\n", "utf-8");
+    fs.writeFileSync(
+      artifact,
+      JSON.stringify({ marker, content, proof }, null, 2) + "\n",
+      "utf-8",
+    );
     console.log(`M0 artifact: ${artifact}`);
     for (const s of proof.steps) {
       assert.equal(s.grade, "EXECUTED", `step ${s.name}: ${s.detail}`);

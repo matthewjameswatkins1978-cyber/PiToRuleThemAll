@@ -18,7 +18,10 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { runCommand } from "../evidence/commands.js";
 import type { EvidenceGrade } from "../qa/types.js";
-import type { IntegrationDescriptor, IntegrationState } from "./integration-state.js";
+import type {
+  IntegrationDescriptor,
+  IntegrationState,
+} from "./integration-state.js";
 import type { ReviewDepth } from "../qa/types.js";
 
 export interface TelltailCommand {
@@ -50,19 +53,33 @@ export function shouldRunTelltail(
   opts: { force?: boolean; behaviouralNeed?: boolean } = {},
 ): { run: boolean; reason: string } {
   if (opts.force) return { run: true, reason: "explicitly requested" };
-  if (depth === "DEEP") return { run: true, reason: "DEEP review enables behavioural verification" };
+  if (depth === "DEEP")
+    return {
+      run: true,
+      reason: "DEEP review enables behavioural verification",
+    };
   if (depth === "STANDARD" && opts.behaviouralNeed)
     return { run: true, reason: "STANDARD with material behavioural question" };
-  return { run: false, reason: `${depth} review: Telltail gated off (no behavioural need)` };
+  return {
+    run: false,
+    reason: `${depth} review: Telltail gated off (no behavioural need)`,
+  };
 }
 
 async function onPath(exe: string): Promise<string | null> {
-  const probe = await runCommand(process.platform === "win32" ? "where.exe" : "which", [exe], {
-    timeoutMs: 10_000,
-    maxChars: 1024,
-  });
+  const probe = await runCommand(
+    process.platform === "win32" ? "where.exe" : "which",
+    [exe],
+    {
+      timeoutMs: 10_000,
+      maxChars: 1024,
+    },
+  );
   if (probe.exitCode !== 0) return null;
-  const first = probe.stdout.split("\n").map((l) => l.trim()).filter(Boolean)[0];
+  const first = probe.stdout
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)[0];
   return first ?? null;
 }
 
@@ -73,13 +90,20 @@ export async function resolveTelltailCommand(opts: {
 }): Promise<TelltailCommand | null> {
   const which = opts.which ?? onPath;
   const bin = await which("telltail");
-  if (bin) return { exe: bin, baseArgs: [], source: `telltail on PATH (${bin})` };
+  if (bin)
+    return { exe: bin, baseArgs: [], source: `telltail on PATH (${bin})` };
   const go = await which("go");
-  const repo = opts.repoDir ?? process.env["TELLTAIL_REPO"] ?? "D:\\Projects\\Telltail";
+  const repo =
+    opts.repoDir ?? process.env["TELLTAIL_REPO"] ?? "D:\\Projects\\Telltail";
   if (go && fs.existsSync(path.join(repo, "go.mod"))) {
     // cwd MUST be the module dir: `go run <abs>` otherwise resolves the
     // caller's module context (observed failure inside PiToRuleThemAll).
-    return { exe: go, baseArgs: ["run", path.join(repo, "cmd", "telltail")], source: `go run in ${repo}`, cwd: repo };
+    return {
+      exe: go,
+      baseArgs: ["run", path.join(repo, "cmd", "telltail")],
+      source: `go run in ${repo}`,
+      cwd: repo,
+    };
   }
   return null;
 }
@@ -104,14 +128,21 @@ export class TelltailClient {
     return {
       name: "telltail",
       state: this.cmd ? this.state : "NOT_CONFIGURED",
-      reason: this.cmd ? this.stateReason : "no telltail executable (PATH) and no Go module fallback",
+      reason: this.cmd
+        ? this.stateReason
+        : "no telltail executable (PATH) and no Go module fallback",
       grade: this.state === "READY" ? "EXECUTED" : "UNAVAILABLE",
       version: this.version,
-      executable: this.cmd ? `${this.cmd.exe} ${this.cmd.baseArgs.join(" ")}`.trim() : undefined,
+      executable: this.cmd
+        ? `${this.cmd.exe} ${this.cmd.baseArgs.join(" ")}`.trim()
+        : undefined,
     };
   }
 
-  private async invoke(args: string[], opts: { cwd?: string; timeoutMs?: number } = {}) {
+  private async invoke(
+    args: string[],
+    opts: { cwd?: string; timeoutMs?: number } = {},
+  ) {
     if (!this.cmd) throw new Error("telltail not configured");
     return runCommand(this.cmd.exe, [...this.cmd.baseArgs, ...args], {
       cwd: opts.cwd ?? this.cmd.cwd,
@@ -138,31 +169,78 @@ export class TelltailClient {
   }
 
   /** Level-1: run a worker command with process-lifecycle tracing. */
-  async localRun(opts: { dir: string; worker: string; command: string; trace: string; timeoutMs?: number }) {
-    if (!this.cmd) return { ok: false as const, error: "telltail not configured" };
+  async localRun(opts: {
+    dir: string;
+    worker: string;
+    command: string;
+    trace: string;
+    timeoutMs?: number;
+  }) {
+    if (!this.cmd)
+      return { ok: false as const, error: "telltail not configured" };
     const r = await this.invoke(
-      ["local", "run", "--dir", opts.dir, "--worker", opts.worker, "--command", opts.command, "--trace", opts.trace],
+      [
+        "local",
+        "run",
+        "--dir",
+        opts.dir,
+        "--worker",
+        opts.worker,
+        "--command",
+        opts.command,
+        "--trace",
+        opts.trace,
+      ],
       { timeoutMs: opts.timeoutMs ?? 300_000 },
     );
-    if (r.exitCode !== 0) return { ok: false as const, error: r.stdout.slice(0, 500) + r.stderr.slice(0, 500) };
+    if (r.exitCode !== 0)
+      return {
+        ok: false as const,
+        error: r.stdout.slice(0, 500) + r.stderr.slice(0, 500),
+      };
     return { ok: true as const };
   }
 
   /** Verify a trace's append-only hash chain. */
   async traceVerify(trace: string) {
-    if (!this.cmd) return { ok: false as const, error: "telltail not configured" };
-    const r = await this.invoke(["trace", "verify", trace], { timeoutMs: 60_000 });
-    if (r.exitCode !== 0) return { ok: false as const, error: (r.stdout + r.stderr).slice(0, 500) };
+    if (!this.cmd)
+      return { ok: false as const, error: "telltail not configured" };
+    const r = await this.invoke(["trace", "verify", trace], {
+      timeoutMs: 60_000,
+    });
+    if (r.exitCode !== 0)
+      return { ok: false as const, error: (r.stdout + r.stderr).slice(0, 500) };
     return { ok: true as const };
   }
 
   /** Analyse a trace against a scenario. The QA-of-QA step. */
-  async analyze(opts: { scenario: string; trace: string; worker: string }): Promise<TelltailResult> {
+  async analyze(opts: {
+    scenario: string;
+    trace: string;
+    worker: string;
+  }): Promise<TelltailResult> {
     if (!this.cmd) {
-      return { grade: "UNAVAILABLE", outcome: "unknown", accepted: false, findings: [], traceHead: "", note: "telltail not configured" };
+      return {
+        grade: "UNAVAILABLE",
+        outcome: "unknown",
+        accepted: false,
+        findings: [],
+        traceHead: "",
+        note: "telltail not configured",
+      };
     }
     const r = await this.invoke(
-      ["analyze", "--scenario", opts.scenario, "--trace", opts.trace, "--worker", opts.worker, "--backend", "local"],
+      [
+        "analyze",
+        "--scenario",
+        opts.scenario,
+        "--trace",
+        opts.trace,
+        "--worker",
+        opts.worker,
+        "--backend",
+        "local",
+      ],
       { timeoutMs: 120_000 },
     );
     if (r.exitCode !== 0) {
@@ -179,7 +257,12 @@ export class TelltailClient {
       const parsed = JSON.parse(r.stdout) as {
         outcome?: string;
         accepted?: boolean;
-        findings?: { code?: string; severity?: number; summary?: string; seq?: number }[];
+        findings?: {
+          code?: string;
+          severity?: number;
+          summary?: string;
+          seq?: number;
+        }[];
         trace_head?: string;
         traceHead?: string;
       };

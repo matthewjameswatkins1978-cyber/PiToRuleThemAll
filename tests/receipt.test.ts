@@ -95,4 +95,18 @@ describe("renderReceiptCompact", () => {
       ),
     );
   });
+  it("renders the integrations section with states", () => {
+    const r = receipt();
+    r.integrations = {
+      lantern: { state: "READY", evidence_grade: "EXECUTED", reason: "ok" },
+      reusery: {
+        state: "NOT_NEEDED",
+        evidence_grade: "UNAVAILABLE",
+        reason: "gated off",
+      },
+    };
+    const text = renderReceiptCompact(r);
+    assert.ok(text.includes("lantern: READY [EXECUTED]"));
+    assert.ok(text.includes("reusery: NOT_NEEDED [UNAVAILABLE]"));
+  });
 });

@@ -2,7 +2,11 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { looksLikeSecret, platformSpawn, runCommand } from "../src/evidence/commands.js";
+import {
+  looksLikeSecret,
+  platformSpawn,
+  runCommand,
+} from "../src/evidence/commands.js";
 import {
   discoverTestCommand,
   parseTestSummary,
@@ -32,17 +36,24 @@ describe("runCommand", () => {
 describe("platformSpawn (Windows routing)", () => {
   it("spawns pathed executables directly, bare words via cmd", () => {
     if (process.platform !== "win32") return;
-    assert.deepEqual(platformSpawn("C:\\Program Files\\Go\\bin\\go.exe", ["version"]), {
-      exe: "C:\\Program Files\\Go\\bin\\go.exe",
-      argv: ["version"],
-    });
+    assert.deepEqual(
+      platformSpawn("C:\\Program Files\\Go\\bin\\go.exe", ["version"]),
+      {
+        exe: "C:\\Program Files\\Go\\bin\\go.exe",
+        argv: ["version"],
+      },
+    );
     const npm = platformSpawn("npm", ["test"]);
     assert.equal(npm.exe, "cmd.exe");
     assert.deepEqual(npm.argv, ["/d", "/s", "/c", "npm", "test"]);
   });
   it("spaced exe runs without quote-stripping", async () => {
     if (process.platform !== "win32") return;
-    const r = await runCommand("C:\\Program Files\\Go\\bin\\go.exe", ["version"], { timeoutMs: 30000, maxChars: 200 });
+    const r = await runCommand(
+      "C:\\Program Files\\Go\\bin\\go.exe",
+      ["version"],
+      { timeoutMs: 30000, maxChars: 200 },
+    );
     assert.equal(r.exitCode, 0);
     assert.ok(r.stdout.includes("go version"));
   });

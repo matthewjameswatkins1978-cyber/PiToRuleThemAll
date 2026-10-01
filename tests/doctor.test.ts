@@ -19,7 +19,12 @@ function registry(): IntegrationRegistry {
     reusery,
     telltail,
     tethers,
-    describeAll: () => [lantern.describe(), reusery.describe(), telltail.describe(), tethers.describe()],
+    describeAll: () => [
+      lantern.describe(),
+      reusery.describe(),
+      telltail.describe(),
+      tethers.describe(),
+    ],
   };
 }
 
@@ -27,11 +32,25 @@ describe("doctor", () => {
   it("reports one compact row per integration with states", async () => {
     const rows = await doctor({ registry: registry() });
     const names = rows.map((r) => r.name);
-    for (const want of ["Pi", "Git", "GitHub", "rg", "ast-grep", "Lantern", "Telltail", "Reusery", "Tethers", "Verifier"]) {
+    for (const want of [
+      "Pi",
+      "Git",
+      "GitHub",
+      "rg",
+      "ast-grep",
+      "Lantern",
+      "Telltail",
+      "Reusery",
+      "Tethers",
+      "Verifier",
+    ]) {
       assert.ok(names.includes(want), `missing row: ${want}`);
     }
     const states = new Set(rows.map((r) => r.state));
-    for (const s of states) assert.ok(["READY", "UNAVAILABLE", "MISCONFIGURED", "OPTIONAL"].includes(s));
+    for (const s of states)
+      assert.ok(
+        ["READY", "UNAVAILABLE", "MISCONFIGURED", "OPTIONAL"].includes(s),
+      );
     const text = renderDoctor(rows);
     assert.ok(text.includes("Lantern"));
     assert.ok(text.split("\n").length === rows.length);
@@ -42,7 +61,10 @@ describe("doctor", () => {
     assert.equal(re?.state, "OPTIONAL");
   });
   it("smoke flag runs the verifier probe", async () => {
-    const rows = await doctor({ registry: registry(), smokeVerifier: async () => ({ ok: true, detail: "smoke ok" }) });
+    const rows = await doctor({
+      registry: registry(),
+      smokeVerifier: async () => ({ ok: true, detail: "smoke ok" }),
+    });
     const v = rows.find((r) => r.name === "Verifier");
     assert.equal(v?.detail, "smoke ok");
   });

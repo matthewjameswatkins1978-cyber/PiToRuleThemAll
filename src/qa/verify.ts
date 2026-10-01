@@ -90,13 +90,20 @@ export interface VerifyOutcome {
 function harnessChangedFiles(files: string[]): string[] {
   return files.filter((f) => {
     const norm = f.replace(/\\/g, "/");
-    return HARNESS_PATHS.some((h) => norm === h.replace(/\/$/, "") || norm.startsWith(h));
+    return HARNESS_PATHS.some(
+      (h) => norm === h.replace(/\/$/, "") || norm.startsWith(h),
+    );
   });
 }
 
 async function scriptExists(repoRoot: string, name: string): Promise<boolean> {
   try {
-    const pkg = JSON.parse((await fs.promises.readFile(path.join(repoRoot, "package.json"), "utf-8")) as string) as {
+    const pkg = JSON.parse(
+      (await fs.promises.readFile(
+        path.join(repoRoot, "package.json"),
+        "utf-8",
+      )) as string,
+    ) as {
       scripts?: Record<string, string>;
     };
     return typeof pkg.scripts?.[name] === "string";
@@ -115,7 +122,9 @@ export async function verify(
   },
   opts: VerifyOptions = {},
 ): Promise<VerifyOutcome> {
-  const spec = opts.specId ? loadSpec(repoRoot, opts.specId) : latestSpec(repoRoot);
+  const spec = opts.specId
+    ? loadSpec(repoRoot, opts.specId)
+    : latestSpec(repoRoot);
   if (!spec) throw new Error("no QA spec found. Run /qa preflight first.");
   const depth: ReviewDepth = spec.review_depth ?? "STANDARD";
 
@@ -126,7 +135,9 @@ export async function verify(
   const baseRef = snapshot.baseSha ?? "HEAD";
   const trustedRules: Record<string, string | null> = {};
   for (const f of ["AGENTS.md", "package.json"]) {
-    trustedRules[f] = snapshot.isRepo ? await readAtRef(repoRoot, baseRef, f) : null;
+    trustedRules[f] = snapshot.isRepo
+      ? await readAtRef(repoRoot, baseRef, f)
+      : null;
   }
 
   // 3. Deterministic evidence: tests, format, typecheck.
@@ -142,23 +153,47 @@ export async function verify(
     total: tests.total,
     passed: tests.passed,
     failed: tests.failed,
-    grade: (tests.discovered && tests.result ? "EXECUTED" : "UNAVAILABLE") as EvidenceGrade,
+    grade: (tests.discovered && tests.result
+      ? "EXECUTED"
+      : "UNAVAILABLE") as EvidenceGrade,
   };
-  const commandRecords: { command: string; exit_code: number; truncated?: boolean }[] = [];
+  const commandRecords: {
+    command: string;
+    exit_code: number;
+    truncated?: boolean;
+  }[] = [];
   if (tests.command && tests.result) {
-    commandRecords.push({ command: tests.command, exit_code: tests.result.exitCode, truncated: tests.result.truncated });
+    commandRecords.push({
+      command: tests.command,
+      exit_code: tests.result.exitCode,
+      truncated: tests.result.truncated,
+    });
   }
   let formatExitCode: number | null = null;
   let typecheckExitCode: number | null = null;
   if (await scriptExists(repoRoot, "format:check")) {
-    const r = await runCommand("npm", ["run", "format:check", "--silent"], { cwd: repoRoot, timeoutMs: 120_000 });
+    const r = await runCommand("npm", ["run", "format:check", "--silent"], {
+      cwd: repoRoot,
+      timeoutMs: 120_000,
+    });
     formatExitCode = r.exitCode;
-    commandRecords.push({ command: "npm run format:check", exit_code: r.exitCode, truncated: r.truncated });
+    commandRecords.push({
+      command: "npm run format:check",
+      exit_code: r.exitCode,
+      truncated: r.truncated,
+    });
   }
   if (await scriptExists(repoRoot, "typecheck")) {
-    const r = await runCommand("npm", ["run", "typecheck", "--silent"], { cwd: repoRoot, timeoutMs: 180_000 });
+    const r = await runCommand("npm", ["run", "typecheck", "--silent"], {
+      cwd: repoRoot,
+      timeoutMs: 180_000,
+    });
     typecheckExitCode = r.exitCode;
-    commandRecords.push({ command: "npm run typecheck", exit_code: r.exitCode, truncated: r.truncated });
+    commandRecords.push({
+      command: "npm run typecheck",
+      exit_code: r.exitCode,
+      truncated: r.truncated,
+    });
   }
 
   // 4. Reuse check (Reusery gated by depth unless forced).
@@ -166,7 +201,13 @@ export async function verify(
   const gateForced = opts.reusery === true || depth !== "LIGHT";
   const reusery = gateForced
     ? await deps.reusery.query(spec.task.normalized_intent)
-    : { grade: "UNAVAILABLE" as EvidenceGrade, outcome: "NEEDS_VERIFICATION" as const, candidates: [], note: "NOT_NEEDED: LIGHT depth, local checks only (use --reusery to force)", state: "NOT_NEEDED" as const };
+    : {
+        grade: "UNAVAILABLE" as EvidenceGrade,
+        outcome: "NEEDS_VERIFICATION" as const,
+        candidates: [],
+        note: "NOT_NEEDED: LIGHT depth, local checks only (use --reusery to force)",
+        state: "NOT_NEEDED" as const,
+      };
   const reuse = await resolveReuse(repoRoot, spec.task.normalized_intent, {
     focusFile: opts.focusFile,
     siblingRepos: opts.siblingRepos,
@@ -174,7 +215,9 @@ export async function verify(
     reuseryGrade: reusery.grade,
   });
   if (reusery.grade !== "UNAVAILABLE") {
-    reuse.found.push(`reusery: ${reusery.outcome} ${reusery.candidates.slice(0, 3).join(", ")}`.trim());
+    reuse.found.push(
+      `reusery: ${reusery.outcome} ${reusery.candidates.slice(0, 3).join(", ")}`.trim(),
+    );
   } else {
     reuse.not_checked.push(`reusery: ${reusery.note}`);
   }
@@ -182,14 +225,23 @@ export async function verify(
   // 5. Adversarial detectors (deterministic, pre-verifier).
   const detections: Detection[] = [];
   detections.push(detectWeakenedTests(diff.diff));
-  detections.push(detectUnexecutedTestClaim(opts.builderClaimsTestsPassed ?? false, testEvidence.grade === "EXECUTED"));
-  detections.push(detectUnnecessaryDependency(opts.addedDependencies ?? [], diff.diff));
+  detections.push(
+    detectUnexecutedTestClaim(
+      opts.builderClaimsTestsPassed ?? false,
+      testEvidence.grade === "EXECUTED",
+    ),
+  );
+  detections.push(
+    detectUnnecessaryDependency(opts.addedDependencies ?? [], diff.diff),
+  );
   const policyFiles =
     snapshot.isRepo && snapshot.baseSha && snapshot.headSha
       ? await changedPolicyFiles(repoRoot, snapshot.baseSha, snapshot.headSha)
       : [];
   detections.push(detectPolicyChange(policyFiles));
-  detections.push(detectRejectedArchitecture(diff.diff, lanternPack.pack.rejectedPaths));
+  detections.push(
+    detectRejectedArchitecture(diff.diff, lanternPack.pack.rejectedPaths),
+  );
   if (snapshot.isRepo) {
     detections.push(
       ...detectRemoteDivergence({
@@ -213,13 +265,16 @@ export async function verify(
   let telltailNote = telltailGate.reason;
   let telltailGrade: EvidenceGrade = "UNAVAILABLE";
   if (telltailGate.run) {
-    const { runCalibration } = await import("../adapters/telltail-calibration.js");
+    const { runCalibration } =
+      await import("../adapters/telltail-calibration.js");
     const cal = await runCalibration(repoRoot, deps.telltail);
     telltailGrade = cal.grade;
     telltailNote = cal.note;
     if (cal.grade === "EXECUTED") {
       if (!cal.calibrationPassed) {
-        integritySignals.push("behavioural calibration failed: evaluator missed the known defect");
+        integritySignals.push(
+          "behavioural calibration failed: evaluator missed the known defect",
+        );
         risks.push(`telltail calibration FAILED: ${cal.note}`);
       }
     } else {
@@ -229,13 +284,24 @@ export async function verify(
     unknowns.push(`telltail: ${telltailGate.reason}`);
   }
 
-  if (lanternPack.grade === "UNAVAILABLE") unknowns.push(`lantern: ${lanternPack.note}`);
-  if (reusery.grade === "UNAVAILABLE") unknowns.push(`reusery: ${reusery.note}`);
-  if (testEvidence.grade === "UNAVAILABLE") unknowns.push("tests: no recognised harness or execution failed");
-  if (testEvidence.grade === "EXECUTED" && (testEvidence.passed === null || testEvidence.total === null)) {
-    unknowns.push(`tests: exit ${testEvidence.exit_code} but counts unparseable (see command record)`);
+  if (lanternPack.grade === "UNAVAILABLE")
+    unknowns.push(`lantern: ${lanternPack.note}`);
+  if (reusery.grade === "UNAVAILABLE")
+    unknowns.push(`reusery: ${reusery.note}`);
+  if (testEvidence.grade === "UNAVAILABLE")
+    unknowns.push("tests: no recognised harness or execution failed");
+  if (
+    testEvidence.grade === "EXECUTED" &&
+    (testEvidence.passed === null || testEvidence.total === null)
+  ) {
+    unknowns.push(
+      `tests: exit ${testEvidence.exit_code} but counts unparseable (see command record)`,
+    );
   }
-  if (diff.truncated) unknowns.push("diff truncated at 40k chars: unshown files marked not_checked by verifier");
+  if (diff.truncated)
+    unknowns.push(
+      "diff truncated at 40k chars: unshown files marked not_checked by verifier",
+    );
 
   // 7. Independent reviewer — or deterministic-only short-circuit.
   const bundle: VerifierBundle = {
@@ -259,7 +325,12 @@ export async function verify(
   type InitialResult = {
     verdict: string;
     integrity: string;
-    checks: { requirement_id: string; status: string; evidence_grade: EvidenceGrade; evidence?: Record<string, unknown> }[];
+    checks: {
+      requirement_id: string;
+      status: string;
+      evidence_grade: EvidenceGrade;
+      evidence?: Record<string, unknown>;
+    }[];
     notes: string[];
     stopReasons: string[];
     integritySignals: string[];
@@ -267,12 +338,23 @@ export async function verify(
   let initial: InitialResult;
   let spawnArgs: string[];
   if (opts.specOnly) {
-    unknowns.push("spec-only review: semantic verifier skipped; PASS is unreachable on this path");
-    initial = { verdict: "INCONCLUSIVE", integrity: "OK", checks: [], notes: [], stopReasons: [], integritySignals: [] };
+    unknowns.push(
+      "spec-only review: semantic verifier skipped; PASS is unreachable on this path",
+    );
+    initial = {
+      verdict: "INCONCLUSIVE",
+      integrity: "OK",
+      checks: [],
+      notes: [],
+      stopReasons: [],
+      integritySignals: [],
+    };
     spawnArgs = [];
     promptWithheld = true;
   } else {
-    const r = await runIndependentReview(repoRoot, bundle, { spawn: opts.spawn });
+    const r = await runIndependentReview(repoRoot, bundle, {
+      spawn: opts.spawn,
+    });
     initial = r.result;
     spawnArgs = r.spawnArgs;
   }
@@ -286,15 +368,22 @@ export async function verify(
   }));
   for (const d of detections) {
     if (!d.detected) continue;
-    if (d.signal === "test-weakened" || d.signal === "rejected-architecture") risks.push(d.detail);
-    if (d.signal === "tests-not-executed" && opts.builderClaimsTestsPassed) risks.push(d.detail);
+    if (d.signal === "test-weakened" || d.signal === "rejected-architecture")
+      risks.push(d.detail);
+    if (d.signal === "tests-not-executed" && opts.builderClaimsTestsPassed)
+      risks.push(d.detail);
   }
   const remoteDiverged = detections.find((d) => d.signal === "head-vs-remote");
   const remoteBlocked =
     opts.requireRemotePush &&
-    (remoteDiverged?.detected || detections.some((d) => d.signal === "no-remote" || d.signal === "remote-unreachable"));
+    (remoteDiverged?.detected ||
+      detections.some(
+        (d) => d.signal === "no-remote" || d.signal === "remote-unreachable",
+      ));
   if (remoteBlocked) {
-    unknowns.push("remote push required by policy but local HEAD is not verified on the remote");
+    unknowns.push(
+      "remote push required by policy but local HEAD is not verified on the remote",
+    );
     checks.push({
       requirement_id: "REMOTE",
       status: "unverified",
@@ -307,12 +396,23 @@ export async function verify(
   const tamper = evaluateTamper({
     policyChanged: policyFiles,
     harnessChanged: harnessFiles,
-    testWeakened: detections.some((d) => d.signal === "test-weakened" && d.detected),
-    testsClaimedButNotExecuted: detections.some((d) => d.signal === "tests-not-executed" && d.detected && opts.builderClaimsTestsPassed),
+    testWeakened: detections.some(
+      (d) => d.signal === "test-weakened" && d.detected,
+    ),
+    testsClaimedButNotExecuted: detections.some(
+      (d) =>
+        d.signal === "tests-not-executed" &&
+        d.detected &&
+        opts.builderClaimsTestsPassed,
+    ),
   });
   risks.push(...tamper.risks);
   const stopReasons = [...initial.stopReasons, ...tamper.stopReasons];
-  const { verdict, effectiveChecks } = determineVerdict({ checks, notes: initial.notes, stopReasons });
+  const { verdict, effectiveChecks } = determineVerdict({
+    checks,
+    notes: initial.notes,
+    stopReasons,
+  });
 
   // 10. Builder claims reconciled only now, against frozen observed evidence.
   const observed: ObservedEvidence = {
@@ -326,12 +426,23 @@ export async function verify(
     branch: snapshot.branch,
     headSha: snapshot.headSha,
     remoteSha: snapshot.remoteSha,
-    remoteVerified: snapshot.remoteSha !== null && snapshot.headSha !== null && snapshot.remoteSha === snapshot.headSha,
+    remoteVerified:
+      snapshot.remoteSha !== null &&
+      snapshot.headSha !== null &&
+      snapshot.remoteSha === snapshot.headSha,
     filesChanged: diff.files,
     extensionLoaded: null,
-    commandsExecuted: commandRecords.map((c) => ({ command: c.command, exit_code: c.exit_code })),
+    commandsExecuted: commandRecords.map((c) => ({
+      command: c.command,
+      exit_code: c.exit_code,
+    })),
   };
-  const builderClaims: QaReceipt["builder_claims"] = { supported: [], unsupported: [], contradicted: [], not_checked: [] };
+  const builderClaims: QaReceipt["builder_claims"] = {
+    supported: [],
+    unsupported: [],
+    contradicted: [],
+    not_checked: [],
+  };
   if (opts.builderReport) {
     for (const rc of reconcileBuilderClaims(opts.builderReport, observed)) {
       const bucket =
@@ -349,7 +460,11 @@ export async function verify(
   // 11. STOP packaging stays read-only: Tethers is consulted for state,
   // never for permission. QA verdict != permission, always.
   if (verdict === "STOP_RECOMMENDED") {
-    const probe = await deps.tethers.probe().catch(() => ({ ok: false as const, version: "", detail: "tethers probe threw" }));
+    const probe = await deps.tethers.probe().catch(() => ({
+      ok: false as const,
+      version: "",
+      detail: "tethers probe threw",
+    }));
     unknowns.push(
       probe.ok
         ? `tethers boundary present (${probe.detail}); STOP_RECOMMENDED authorises nothing`
@@ -377,10 +492,17 @@ export async function verify(
       head_sha: snapshot.headSha ?? "unknown",
       remote: snapshot.remote,
       remote_sha: snapshot.remoteSha,
-      remote_verified: snapshot.remoteSha !== null && snapshot.headSha !== null && snapshot.remoteSha === snapshot.headSha,
+      remote_verified:
+        snapshot.remoteSha !== null &&
+        snapshot.headSha !== null &&
+        snapshot.remoteSha === snapshot.headSha,
       dirty: snapshot.dirty,
     },
-    intent: { spec_id: spec.id, spec_revision: spec.revision, satisfied: verdict === "PASS" || verdict === "PASS_WITH_NOTES" },
+    intent: {
+      spec_id: spec.id,
+      spec_revision: spec.revision,
+      satisfied: verdict === "PASS" || verdict === "PASS_WITH_NOTES",
+    },
     reuse: { searched: reuse.searched, findings: reuse.found.slice(0, 20) },
     verification: effectiveChecks,
     tests: {
@@ -390,12 +512,34 @@ export async function verify(
       failed: testEvidence.failed ?? 0,
     },
     builder_claims: builderClaims,
-    lantern: { context_pack_id: lanternPack.pack.id, decisions_consulted: lanternPack.pack.decisions.map((d) => d.id) },
+    lantern: {
+      context_pack_id: lanternPack.pack.id,
+      decisions_consulted: lanternPack.pack.decisions.map((d) => d.id),
+    },
     integrations: {
-      lantern: { state: deps.lantern.describe().state, evidence_grade: lanternPack.grade, reason: lanternPack.note },
-      telltail: { state: telltailGrade === "EXECUTED" ? "READY" : deps.telltail.describe().state, evidence_grade: telltailGrade, reason: telltailNote },
-      reusery: { state: reusery.state, evidence_grade: reusery.grade, reason: reusery.note },
-      tethers: { state: deps.tethers.describe().state, evidence_grade: "UNAVAILABLE", reason: deps.tethers.describe().reason },
+      lantern: {
+        state: deps.lantern.describe().state,
+        evidence_grade: lanternPack.grade,
+        reason: lanternPack.note,
+      },
+      telltail: {
+        state:
+          telltailGrade === "EXECUTED"
+            ? "READY"
+            : deps.telltail.describe().state,
+        evidence_grade: telltailGrade,
+        reason: telltailNote,
+      },
+      reusery: {
+        state: reusery.state,
+        evidence_grade: reusery.grade,
+        reason: reusery.note,
+      },
+      tethers: {
+        state: deps.tethers.describe().state,
+        evidence_grade: "UNAVAILABLE",
+        reason: deps.tethers.describe().reason,
+      },
     },
     risks,
     unknowns,
@@ -404,5 +548,11 @@ export async function verify(
   };
 
   const receiptFile = saveReceipt(repoRoot, receipt);
-  return { receipt, receiptFile, verifierSpawnArgs: spawnArgs, detections, promptWithheld };
+  return {
+    receipt,
+    receiptFile,
+    verifierSpawnArgs: spawnArgs,
+    detections,
+    promptWithheld,
+  };
 }

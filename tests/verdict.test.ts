@@ -114,18 +114,33 @@ describe("maxIntegrity", () => {
 
 describe("evaluateTamper", () => {
   it("policy change alone is risk, not stop", () => {
-    const r = evaluateTamper({ policyChanged: ["AGENTS.md"], harnessChanged: [], testWeakened: false, testsClaimedButNotExecuted: false });
+    const r = evaluateTamper({
+      policyChanged: ["AGENTS.md"],
+      harnessChanged: [],
+      testWeakened: false,
+      testsClaimedButNotExecuted: false,
+    });
     assert.equal(r.integrity, "OK");
     assert.deepEqual(r.stopReasons, []);
     assert.ok(r.risks.length > 0);
   });
   it("harness change alone is SUSPECT", () => {
-    const r = evaluateTamper({ policyChanged: [], harnessChanged: ["src/qa/verify.ts"], testWeakened: false, testsClaimedButNotExecuted: false });
+    const r = evaluateTamper({
+      policyChanged: [],
+      harnessChanged: ["src/qa/verify.ts"],
+      testWeakened: false,
+      testsClaimedButNotExecuted: false,
+    });
     assert.equal(r.integrity, "SUSPECT");
     assert.deepEqual(r.stopReasons, []);
   });
   it("harness change + weakened tests is COMPROMISED + STOP", () => {
-    const r = evaluateTamper({ policyChanged: [], harnessChanged: ["src/qa/verify.ts"], testWeakened: true, testsClaimedButNotExecuted: false });
+    const r = evaluateTamper({
+      policyChanged: [],
+      harnessChanged: ["src/qa/verify.ts"],
+      testWeakened: true,
+      testsClaimedButNotExecuted: false,
+    });
     assert.equal(r.integrity, "COMPROMISED");
     assert.equal(r.stopReasons.length, 1);
   });

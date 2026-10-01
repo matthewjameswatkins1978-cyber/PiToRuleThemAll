@@ -166,8 +166,7 @@ export function evaluateTamper(input: {
       `QA harness modified on reviewed branch (verification tooling itself changed): ${input.harnessChanged.join(", ")}`,
     );
   }
-  const evasion =
-    input.testWeakened || input.testsClaimedButNotExecuted;
+  const evasion = input.testWeakened || input.testsClaimedButNotExecuted;
   if (input.harnessChanged.length > 0 && evasion) {
     integrity = "COMPROMISED";
     stopReasons.push(

@@ -186,7 +186,13 @@
             ]
           },
           "evidence_grade": {
-            "enum": ["EXECUTED", "OBSERVED", "REPORTED", "INFERRED", "UNAVAILABLE"]
+            "enum": [
+              "EXECUTED",
+              "OBSERVED",
+              "REPORTED",
+              "INFERRED",
+              "UNAVAILABLE"
+            ]
           },
           "reason": { "type": "string" }
         },

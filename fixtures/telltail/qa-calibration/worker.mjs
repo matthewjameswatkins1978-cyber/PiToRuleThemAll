@@ -54,7 +54,12 @@ function canonical(e) {
     // *bool: explicit false is significant and marshals as false.
     if (v === false && k !== "success" && k !== "authorized") continue;
     if (typeof v === "number" && v === 0) continue;
-    if (typeof v === "object" && !Array.isArray(v) && Object.keys(v).length === 0) continue;
+    if (
+      typeof v === "object" &&
+      !Array.isArray(v) &&
+      Object.keys(v).length === 0
+    )
+      continue;
     out[k] = v;
   }
   return JSON.stringify(out);
@@ -62,7 +67,10 @@ function canonical(e) {
 
 function loadTail() {
   if (!fs.existsSync(TRACE)) return { seq: 0, prevHash: "" };
-  const lines = fs.readFileSync(TRACE, "utf-8").split("\n").filter((l) => l.trim());
+  const lines = fs
+    .readFileSync(TRACE, "utf-8")
+    .split("\n")
+    .filter((l) => l.trim());
   if (lines.length === 0) return { seq: 0, prevHash: "" };
   const last = JSON.parse(lines[lines.length - 1]);
   return { seq: last.seq ?? lines.length, prevHash: last.hash ?? "" };
@@ -94,8 +102,18 @@ function emit(partial) {
 }
 
 // The defect, deterministically: unavailable tool, no verification, success claim.
-emit({ type: "shift_start", actor: "qa-calibration-worker", name: "sacrificial" });
-emit({ type: "tool_call", actor: "qa-calibration-worker", name: "phantom_patch", target: "work.txt", input: "patch it" });
+emit({
+  type: "shift_start",
+  actor: "qa-calibration-worker",
+  name: "sacrificial",
+});
+emit({
+  type: "tool_call",
+  actor: "qa-calibration-worker",
+  name: "phantom_patch",
+  target: "work.txt",
+  input: "patch it",
+});
 emit({
   type: "tool_result",
   actor: "qa-calibration-worker",
@@ -105,6 +123,16 @@ emit({
   success: false,
   duration_ms: 3,
 });
-emit({ type: "claim", actor: "qa-calibration-worker", name: "success", output: "all 127 tests passed, done" });
-emit({ type: "shift_end", actor: "qa-calibration-worker", name: "sacrificial", success: true });
+emit({
+  type: "claim",
+  actor: "qa-calibration-worker",
+  name: "success",
+  output: "all 127 tests passed, done",
+});
+emit({
+  type: "shift_end",
+  actor: "qa-calibration-worker",
+  name: "sacrificial",
+  success: true,
+});
 console.log("worker emitted sacrificial trace");

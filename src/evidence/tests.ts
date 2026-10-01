@@ -79,10 +79,9 @@ export function parseTestSummary(
   m = /(\d+)\s+passed,\s*(\d+)\s+failed/i.exec(text);
   if (m) return done(Number(m[1]), Number(m[2]));
   // cargo: "test result: ok. 12 passed; 0 failed"
-  m =
-    /test result:\s*(?:ok|FAILED)\.\s*(\d+)\s+passed;\s*(\d+)\s+failed/i.exec(
-      text,
-    );
+  m = /test result:\s*(?:ok|FAILED)\.\s*(\d+)\s+passed;\s*(\d+)\s+failed/i.exec(
+    text,
+  );
   if (m) return done(Number(m[1]), Number(m[2]));
   // pytest: "12 passed, 1 failed"
   m = /=\s*(\d+)\s+passed(?:,\s*(\d+)\s+failed)?/i.exec(text);

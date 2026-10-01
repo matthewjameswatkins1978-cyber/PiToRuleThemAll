@@ -56,7 +56,10 @@ export class StdioMcpClient {
   async start(): Promise<void> {
     if (this.proc) return;
     const { platformSpawn } = await import("../../evidence/commands.js");
-    const { exe, argv } = platformSpawn(this.opts.command, this.opts.args ?? []);
+    const { exe, argv } = platformSpawn(
+      this.opts.command,
+      this.opts.args ?? [],
+    );
     const proc = spawn(exe, argv, {
       cwd: this.opts.cwd,
       env: { ...process.env, ...this.opts.env },
@@ -65,20 +68,39 @@ export class StdioMcpClient {
     });
     this.proc = proc;
     proc.stdout?.on("data", (d) => this.onData(String(d)));
+    // Listeners are removed once startup succeeds so a later normal exit
+    // cannot turn into an unhandled rejection.
+    let onError: ((e: Error) => void) | null = null;
+    let onExit: ((code: number | null) => void) | null = null;
     const earlyExit = new Promise<never>((_, reject) => {
-      proc.on("error", (e) => reject(new StdioMcpError(`MCP server failed to start: ${(e as Error).message}`)));
-      proc.on("exit", (code) => {
-        if (this.pending.size > 0) reject(new StdioMcpError(`MCP server exited early (code ${code})`));
-      });
+      onError = (e: Error) =>
+        reject(new StdioMcpError(`MCP server failed to start: ${e.message}`));
+      onExit = (code: number | null) => {
+        reject(new StdioMcpError(`MCP server exited early (code ${code})`));
+      };
+      proc.on("error", onError);
+      proc.on("exit", onExit);
     });
-    void earlyExit;
-    // MCP handshake: initialize, then told about completion.
-    const init = await this.request("initialize", {
-      protocolVersion: "2025-06-18",
-      capabilities: {},
-      clientInfo: { name: "pi-qa", version: "0.1.0" },
-    });
-    if (init.error) throw new StdioMcpError(`MCP initialize failed: ${JSON.stringify(init.error).slice(0, 300)}`);
+    // MCP handshake races process death: a missing binary must reject
+    // start() instead of hanging until the initialize timeout.
+    let init: Record<string, unknown>;
+    try {
+      init = await Promise.race([
+        this.request("initialize", {
+          protocolVersion: "2025-06-18",
+          capabilities: {},
+          clientInfo: { name: "pi-qa", version: "0.1.0" },
+        }),
+        earlyExit,
+      ]);
+    } finally {
+      if (onError) proc.off("error", onError);
+      if (onExit) proc.off("exit", onExit);
+    }
+    if (init.error)
+      throw new StdioMcpError(
+        `MCP initialize failed: ${JSON.stringify(init.error).slice(0, 300)}`,
+      );
     try {
       await this.notify("notifications/initialized", {});
     } catch {
@@ -110,26 +132,36 @@ export class StdioMcpClient {
     }
   }
 
-  private request(method: string, params: unknown): Promise<Record<string, unknown>> {
+  private request(
+    method: string,
+    params: unknown,
+  ): Promise<Record<string, unknown>> {
     const proc = this.proc;
     if (!proc?.stdin) throw new StdioMcpError("MCP client not started");
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(new StdioMcpError(`MCP ${method} timed out after ${this.timeoutMs}ms`));
+        reject(
+          new StdioMcpError(
+            `MCP ${method} timed out after ${this.timeoutMs}ms`,
+          ),
+        );
       }, this.timeoutMs);
       this.pending.set(id, (msg) => {
         clearTimeout(timer);
         resolve(msg);
       });
-      proc.stdin?.write(JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n", (err) => {
-        if (err) {
-          clearTimeout(timer);
-          this.pending.delete(id);
-          reject(new StdioMcpError(`MCP write failed: ${err.message}`));
-        }
-      });
+      proc.stdin?.write(
+        JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n",
+        (err) => {
+          if (err) {
+            clearTimeout(timer);
+            this.pending.delete(id);
+            reject(new StdioMcpError(`MCP write failed: ${err.message}`));
+          }
+        },
+      );
     });
   }
 
@@ -141,28 +173,47 @@ export class StdioMcpClient {
 
   async listTools(): Promise<McpToolDef[]> {
     const res = await this.request("tools/list", {});
-    if (res["error"]) throw new StdioMcpError(`tools/list failed: ${JSON.stringify(res["error"]).slice(0, 300)}`);
-    const result = res["result"] as { tools?: { name: string; description?: string; inputSchema?: unknown }[] };
-    return (result.tools ?? []).map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema }));
+    if (res["error"])
+      throw new StdioMcpError(
+        `tools/list failed: ${JSON.stringify(res["error"]).slice(0, 300)}`,
+      );
+    const result = res["result"] as {
+      tools?: { name: string; description?: string; inputSchema?: unknown }[];
+    };
+    return (result.tools ?? []).map((t) => ({
+      name: t.name,
+      description: t.description,
+      inputSchema: t.inputSchema,
+    }));
   }
 
   /**
    * Call a tool. Returns the parsed structuredContent when present,
    * else the joined text content. Throws on tool isError.
    */
-  async callTool<T = unknown>(name: string, args: Record<string, unknown>): Promise<T> {
+  async callTool<T = unknown>(
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<T> {
     const res = await this.request("tools/call", { name, arguments: args });
-    if (res["error"]) throw new StdioMcpError(`tools/call ${name} failed: ${JSON.stringify(res["error"]).slice(0, 300)}`);
+    if (res["error"])
+      throw new StdioMcpError(
+        `tools/call ${name} failed: ${JSON.stringify(res["error"]).slice(0, 300)}`,
+      );
     const result = res["result"] as {
       isError?: boolean;
       content?: { type?: string; text?: string }[];
       structuredContent?: unknown;
     };
     if (result.isError) {
-      const text = (result.content ?? []).map((c) => c.text ?? "").join("\n").slice(0, 500);
+      const text = (result.content ?? [])
+        .map((c) => c.text ?? "")
+        .join("\n")
+        .slice(0, 500);
       throw new StdioMcpError(`tool ${name} returned isError: ${text}`);
     }
-    if (result.structuredContent !== undefined) return result.structuredContent as T;
+    if (result.structuredContent !== undefined)
+      return result.structuredContent as T;
     const text = (result.content ?? []).map((c) => c.text ?? "").join("\n");
     try {
       return JSON.parse(text) as T;
@@ -176,7 +227,8 @@ export class StdioMcpClient {
     this.proc = null;
     this.buf = "";
     if (!proc) return;
-    for (const [, cb] of this.pending) cb({ error: { message: "client stopped" } });
+    for (const [, cb] of this.pending)
+      cb({ error: { message: "client stopped" } });
     this.pending.clear();
     proc.stdin?.end();
     const exited = new Promise<void>((resolve) => {
