@@ -12,12 +12,22 @@ const root = path.resolve(import.meta.dirname, "..");
 const live = process.argv.includes("--live");
 
 function run(cmd, args, env) {
-  const r = spawnSync(cmd, args, {
+  // Pipe (not inherit) so parent QA processes can capture and parse the
+  // summary; re-print for human visibility. On Windows, .cmd shims need
+  // cmd.exe with separate argv entries (no shell:true: DEP0190, and no
+  // pre-joined strings: double-quoting corruption).
+  const wrapped =
+    process.platform === "win32"
+      ? { cmd: "cmd.exe", args: ["/d", "/s", "/c", cmd, ...args] }
+      : { cmd, args };
+  const r = spawnSync(wrapped.cmd, wrapped.args, {
     cwd: root,
-    stdio: "inherit",
-    shell: process.platform === "win32",
+    stdio: ["ignore", "pipe", "pipe"],
     env: { ...process.env, ...env },
+    maxBuffer: 64 * 1024 * 1024,
   });
+  process.stdout.write(r.stdout);
+  process.stderr.write(r.stderr);
   if (r.status !== 0) process.exit(r.status ?? 1);
 }
 

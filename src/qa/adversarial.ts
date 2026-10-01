@@ -23,8 +23,22 @@ function readText(file: string): string | null {
   }
 }
 
-/** Test weakened to pass: skip/todo/focused tests, neutered assertions. */
+/**
+ * Test weakened to pass: skip/todo/focused tests, neutered assertions.
+ * Quoted segments are stripped first: a test that merely MENTIONS
+ * `test.skip` in a string (e.g. QA's own adversarial fixtures) is not
+ * a weakened test. Code-shaped calls (`test.skip(`, `xit(`) survive
+ * stripping because the call itself is outside the quotes.
+ */
+export function stripQuoted(s: string): string {
+  return s.replace(
+    /'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`/g,
+    "",
+  );
+}
+
 export function detectWeakenedTests(diffText: string): Detection {
+  const code = stripQuoted(diffText);
   const patterns = [
     /\.skip\(/,
     /\.todo\(/,
@@ -33,9 +47,7 @@ export function detectWeakenedTests(diffText: string): Detection {
     /expect\(true\)\.toBe\(true\)|assert\.ok\(true\)/,
     /expect\(.*\)\.toBeTruthy\(\)\s*;\s*\/\/\s*was:/i,
   ];
-  const hits = patterns
-    .filter((re) => re.test(diffText))
-    .map((re) => re.source);
+  const hits = patterns.filter((re) => re.test(code)).map((re) => re.source);
   return {
     signal: "test-weakened",
     detected: hits.length > 0,
