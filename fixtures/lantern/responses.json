@@ -1,0 +1,101 @@
+{
+  "_note": "Recorded shapes from lantern-keeper (lighting 0.1.0, MCP bridge structuredContent). Used for adapter mapping tests — never sent to Lantern.",
+  "status": {
+    "ready": { "ready": true, "reason": "durable Source storage is ready" },
+    "version": { "project": "Lantern Keeper", "service": "Lighting", "version": "0.1.0" }
+  },
+  "remember_soft": {
+    "memory_item": {
+      "id": "0e4b1a2c-3d5f-4a6b-8c7d-9e0f1a2b3c4d",
+      "episode_id": null,
+      "source_id": null,
+      "kind": "reference",
+      "content": "Pi QA M0 marker pi-qa-m0-x (repair R1 proof; safe to archive)",
+      "originator_actor_id": "matthew",
+      "transmitter_actor_id": null,
+      "holder_actor_id": "matthew",
+      "salience": 0.5,
+      "reinforcement_count": 0,
+      "last_reinforced_at": null,
+      "pinned": false,
+      "archived": false,
+      "created_at": "2026-10-01T03:00:00Z",
+      "dedupe_key": "Reference|Pi QA M0 marker pi-qa-m0-x (repair R1 proof; safe to archive)"
+    }
+  },
+  "search": {
+    "memory_items": [
+      {
+        "id": "0e4b1a2c-3d5f-4a6b-8c7d-9e0f1a2b3c4d",
+        "episode_id": null,
+        "source_id": null,
+        "kind": "reference",
+        "content": "Pi QA M0 marker pi-qa-m0-x (repair R1 proof; safe to archive)",
+        "originator_actor_id": "matthew",
+        "holder_actor_id": "matthew",
+        "salience": 0.5,
+        "archived": false,
+        "created_at": "2026-10-01T03:00:00Z"
+      },
+      {
+        "id": "aa11bb22-cc33-4d44-8e55-ff6677889900",
+        "kind": "rejected_path",
+        "content": "Redis rejected for this project",
+        "salience": 0.9,
+        "archived": false
+      },
+      {
+        "id": "bb22cc33-dd44-4e55-8f66-001122334455",
+        "kind": "negative_constraint",
+        "content": "local persistence preferred unless measurable need arises",
+        "salience": 0.9,
+        "archived": false
+      }
+    ]
+  },
+  "why_memory": {
+    "memory_item": {
+      "id": "0e4b1a2c-3d5f-4a6b-8c7d-9e0f1a2b3c4d",
+      "kind": "reference",
+      "content": "Pi QA M0 marker pi-qa-m0-x (repair R1 proof; safe to archive)"
+    },
+    "provenance": {
+      "source_id": null,
+      "episode_id": null,
+      "originator_actor_id": "matthew",
+      "transmitter_actor_id": null,
+      "holder_actor_id": "matthew"
+    }
+  },
+  "context": {
+    "context": {
+      "id": "ctx-1234abcd",
+      "query": "What did we decide about persistence?",
+      "current_beliefs": [
+        {
+          "id": "belief-1",
+          "holder_key": "matthew",
+          "subject_key": "config",
+          "predicate_key": "persistence",
+          "current_value": "local-file",
+          "stale": false,
+          "confidence": 0.9
+        }
+      ],
+      "historical_beliefs": [],
+      "soft_memories": [
+        {
+          "id": "aa11bb22-cc33-4d44-8e55-ff6677889900",
+          "kind": "rejected_path",
+          "content": "Redis rejected for this project"
+        },
+        {
+          "id": "bb22cc33-dd44-4e55-8f66-001122334455",
+          "kind": "negative_constraint",
+          "content": "local persistence preferred unless measurable need arises"
+        }
+      ],
+      "source_refs": ["source-9"]
+    }
+  }
+}

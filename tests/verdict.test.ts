@@ -4,6 +4,8 @@ import {
   classifyBuilderClaim,
   determineIntegrity,
   determineVerdict,
+  evaluateTamper,
+  maxIntegrity,
 } from "../src/qa/verdict.js";
 import type { RequirementCheck } from "../src/qa/types.js";
 
@@ -98,6 +100,34 @@ describe("determineIntegrity", () => {
       determineIntegrity(["reviewer attempted to defeat verification"]),
       "COMPROMISED",
     );
+  });
+});
+
+describe("maxIntegrity", () => {
+  it("never downgrades: COMPROMISED survives", () => {
+    assert.equal(maxIntegrity("OK", "COMPROMISED", "OK"), "COMPROMISED");
+    assert.equal(maxIntegrity("COMPROMISED"), "COMPROMISED");
+    assert.equal(maxIntegrity("OK", null, undefined), "OK");
+    assert.equal(maxIntegrity("SUSPECT", "OK"), "SUSPECT");
+  });
+});
+
+describe("evaluateTamper", () => {
+  it("policy change alone is risk, not stop", () => {
+    const r = evaluateTamper({ policyChanged: ["AGENTS.md"], harnessChanged: [], testWeakened: false, testsClaimedButNotExecuted: false });
+    assert.equal(r.integrity, "OK");
+    assert.deepEqual(r.stopReasons, []);
+    assert.ok(r.risks.length > 0);
+  });
+  it("harness change alone is SUSPECT", () => {
+    const r = evaluateTamper({ policyChanged: [], harnessChanged: ["src/qa/verify.ts"], testWeakened: false, testsClaimedButNotExecuted: false });
+    assert.equal(r.integrity, "SUSPECT");
+    assert.deepEqual(r.stopReasons, []);
+  });
+  it("harness change + weakened tests is COMPROMISED + STOP", () => {
+    const r = evaluateTamper({ policyChanged: [], harnessChanged: ["src/qa/verify.ts"], testWeakened: true, testsClaimedButNotExecuted: false });
+    assert.equal(r.integrity, "COMPROMISED");
+    assert.equal(r.stopReasons.length, 1);
   });
 });
 

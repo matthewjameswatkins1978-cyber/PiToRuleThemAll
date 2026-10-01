@@ -13,6 +13,8 @@ export interface TestEvidence {
   discovered: boolean;
   command: string | null;
   result: CommandResult | null;
+  /** Genuine runner counts. Null when the output could not be parsed. */
+  total: number | null;
   passed: number | null;
   failed: number | null;
 }
@@ -55,41 +57,42 @@ export function discoverTestCommand(repoRoot: string): string[] | null {
   return null;
 }
 
-/** Parse common harness summaries from output. Best-effort; nulls mean "could not parse, see exit code". */
+/**
+ * Parse common harness summaries. Best-effort; nulls mean
+ * "could not parse, see exit code" — callers must not fabricate counts.
+ */
 export function parseTestSummary(
   command: string[],
   stdout: string,
-): { passed: number | null; failed: number | null } {
+): { total: number | null; passed: number | null; failed: number | null } {
   const text = stdout;
+  const done = (passed: number, failed: number) => ({
+    total: passed + failed,
+    passed,
+    failed,
+  });
   // vitest / jest / mocha-ish: "Tests  12 passed, 1 failed" / "12 passing, 1 failing"
   let m =
     /(\d+)\s+passing.*?(\d+)\s+failing/s.exec(text) ??
     /Tests\s+(\d+)\s+passed(?:,\s*(\d+)\s+failed)?/i.exec(text);
-  if (m)
-    return {
-      passed: Number(m[1]),
-      failed: m[2] !== undefined ? Number(m[2]) : 0,
-    };
+  if (m) return done(Number(m[1]), m[2] !== undefined ? Number(m[2]) : 0);
   m = /(\d+)\s+passed,\s*(\d+)\s+failed/i.exec(text);
-  if (m) return { passed: Number(m[1]), failed: Number(m[2]) };
+  if (m) return done(Number(m[1]), Number(m[2]));
   // cargo: "test result: ok. 12 passed; 0 failed"
-  m = /test result:\s*ok\.\s*(\d+)\s+passed;\s*(\d+)\s+failed/i.exec(text);
-  if (m) return { passed: Number(m[1]), failed: Number(m[2]) };
-  m = /test result:\s*FAILED\.\s*(\d+)\s+passed;\s*(\d+)\s+failed/i.exec(text);
-  if (m) return { passed: Number(m[1]), failed: Number(m[2]) };
+  m =
+    /test result:\s*(?:ok|FAILED)\.\s*(\d+)\s+passed;\s*(\d+)\s+failed/i.exec(
+      text,
+    );
+  if (m) return done(Number(m[1]), Number(m[2]));
   // pytest: "12 passed, 1 failed"
   m = /=\s*(\d+)\s+passed(?:,\s*(\d+)\s+failed)?/i.exec(text);
-  if (m)
-    return {
-      passed: Number(m[1]),
-      failed: m[2] !== undefined ? Number(m[2]) : 0,
-    };
+  if (m) return done(Number(m[1]), m[2] !== undefined ? Number(m[2]) : 0);
   // node --test TAP: "# pass 12\n# fail 0"; spec reporter: "ℹ pass 12 ... ℹ fail 0"
   m = /# pass\s+(\d+)[\s\S]*?# fail\s+(\d+)/.exec(text);
-  if (m) return { passed: Number(m[1]), failed: Number(m[2]) };
+  if (m) return done(Number(m[1]), Number(m[2]));
   m = /ℹ pass\s+(\d+)[\s\S]*?ℹ fail\s+(\d+)/.exec(text);
-  if (m) return { passed: Number(m[1]), failed: Number(m[2]) };
-  return { passed: null, failed: null };
+  if (m) return done(Number(m[1]), Number(m[2]));
+  return { total: null, passed: null, failed: null };
 }
 
 export async function runTests(
@@ -102,6 +105,7 @@ export async function runTests(
       discovered: false,
       command: null,
       result: null,
+      total: null,
       passed: null,
       failed: null,
     };
@@ -112,6 +116,7 @@ export async function runTests(
     discovered: true,
     command: result.command,
     result,
+    total: summary.total,
     passed: summary.passed,
     failed: summary.failed,
   };

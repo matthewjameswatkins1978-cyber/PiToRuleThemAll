@@ -1,27 +1,38 @@
 /**
- * Reusery adapter (M4). Reusery owns deep reuse discovery; QA consults it
- * only when the task looks like a generally solved engineering capability
- * (proportionality over ceremony). Lack of evidence never becomes
- * BUILD_LOCALLY — it becomes NEEDS_VERIFICATION.
+ * Reusery adapter (§27/M4). Consumes Reusery's existing stdio MCP surface
+ * — never imports its resolver, never reimplements it.
+ *
+ * Bounded, honest integration:
+ * - The proportionality gate decides WHETHER to consult (unchanged).
+ * - When consulted: `reusery_catalog` (read-only list) → keyword match
+ *   against known primitives → optional `reusery_resolve` with an
+ *   EXPLICITLY EMPTY candidate set under the baseline policy, which
+ *   yields a real deterministic decision (usually needs_verification
+ *   with reasons — and needs_verification != build_locally).
+ * - External discovery (discover/enrich) stays OFF unless explicitly
+ *   requested: it is open-world and cost-bearing.
+ * - `reference` is reported as REFERENCE, never as verified reuse.
+ *
+ * States (§35): NOT_NEEDED (gate declined) is distinct from UNAVAILABLE
+ * (gate accepted but no server), which is distinct from OPERATION_FAILED.
  */
 
 import type { EvidenceGrade } from "../qa/types.js";
+import type { IntegrationDescriptor, IntegrationState } from "./integration-state.js";
 
-export type ReuseOutcome =
-  | "REUSE"
-  | "ADAPT"
-  | "DEPEND"
-  | "REFERENCE"
-  | "BUILD_LOCALLY"
-  | "NEEDS_VERIFICATION";
+export type ReuseOutcome = "REUSE" | "ADAPT" | "DEPEND" | "REFERENCE" | "BUILD_LOCALLY" | "NEEDS_VERIFICATION";
 
-export interface ReuseryCaller {
-  query(task: string): Promise<{
+export interface ReuseryMcp {
+  catalog(): Promise<{
     ok: boolean;
-    outcome?: ReuseOutcome;
-    candidates?: string[];
+    primitives?: { primitive_id: string; contract_id: string; name: string; description: string }[];
     error?: string;
   }>;
+  resolve(
+    primitiveId: string,
+    contractId: string,
+    candidates: { specimen_id: string; reuse_mode: string }[],
+  ): Promise<{ ok: boolean; status?: string; outcome?: string; reasons?: string[]; error?: string }>;
 }
 
 /** Generally solved capabilities worth a Reusery query. Everything else stays local. */
@@ -39,91 +50,116 @@ const GENERAL_CAPABILITIES = [
 ];
 
 /** Tiny domain glue that must never trigger a Reusery query. */
-const LOCAL_ONLY = [
-  /spell|typo/i,
-  /rename/i,
-  /comment/i,
-  /format/i,
-  /small|tiny|trivial/i,
-  /one.?line/i,
-];
+const LOCAL_ONLY = [/spell|typo/i, /rename/i, /comment/i, /format/i, /small|tiny|trivial/i, /one.?line/i];
 
-export function shouldConsultReusery(intent: string): {
-  consult: boolean;
-  reason: string;
-} {
+export function shouldConsultReusery(intent: string): { consult: boolean; reason: string } {
   if (LOCAL_ONLY.some((re) => re.test(intent))) {
-    return {
-      consult: false,
-      reason: "task is small/domain-specific glue; Reusery would be ceremony",
-    };
+    return { consult: false, reason: "task is small/domain-specific glue; Reusery would be ceremony" };
   }
   const hit = GENERAL_CAPABILITIES.find((re) => re.test(intent));
-  if (hit)
-    return {
-      consult: true,
-      reason: `generally solved capability (${hit.source})`,
-    };
-  return {
-    consult: false,
-    reason:
-      "no generally solved capability detected; local reuse checks suffice",
-  };
+  if (hit) return { consult: true, reason: `generally solved capability (${hit.source})` };
+  return { consult: false, reason: "no generally solved capability detected; local reuse checks suffice" };
 }
 
 export class ReuseryClient {
-  constructor(private caller: ReuseryCaller | null) {}
+  private state: IntegrationState = "NOT_CONFIGURED";
+  private stateReason = "no Reusery MCP bridge";
 
-  get configured(): boolean {
-    return this.caller !== null;
+  constructor(private mcp: ReuseryMcp | null) {
+    if (mcp) {
+      this.state = "UNREACHABLE";
+      this.stateReason = "bridge present but catalog not yet read";
+    }
   }
 
-  async query(intent: string): Promise<{
-    grade: EvidenceGrade;
-    outcome: ReuseOutcome;
-    candidates: string[];
-    note: string;
-  }> {
+  get configured(): boolean {
+    return this.mcp !== null;
+  }
+
+  describe(): IntegrationDescriptor {
+    return {
+      name: "reusery",
+      state: this.mcp ? this.state : "NOT_CONFIGURED",
+      reason: this.mcp ? this.stateReason : "no Reusery MCP bridge (needs PostgreSQL-backed reusery mcp)",
+      grade: this.state === "READY" ? "EXECUTED" : "UNAVAILABLE",
+    };
+  }
+
+  /**
+   * Query Reusery when the gate allows. Returns a real catalog-backed
+   * outcome; an explicit `forServer` override lets tests inject fakes.
+   */
+  async query(
+    intent: string,
+    opts: { allowExternalDiscovery?: boolean } = {},
+  ): Promise<{ grade: EvidenceGrade; outcome: ReuseOutcome; candidates: string[]; note: string; state: IntegrationState }> {
     const gate = shouldConsultReusery(intent);
     if (!gate.consult) {
       return {
         grade: "UNAVAILABLE",
         outcome: "NEEDS_VERIFICATION",
         candidates: [],
-        note: `not consulted: ${gate.reason}`,
+        note: `NOT_NEEDED: ${gate.reason}`,
+        state: "NOT_NEEDED",
       };
     }
-    if (!this.caller) {
+    if (!this.mcp) {
+      this.state = "NOT_CONFIGURED";
+      this.stateReason = "gate accepted but no Reusery MCP bridge configured";
       return {
         grade: "UNAVAILABLE",
         outcome: "NEEDS_VERIFICATION",
         candidates: [],
-        note: "Reusery unavailable: local reuse checks continue; external search NOT claimed",
+        note: `UNAVAILABLE: ${this.stateReason}`,
+        state: "NOT_CONFIGURED",
       };
     }
+    void opts.allowExternalDiscovery; // external discover/enrich stay off in this bounded integration
     try {
-      const r = await this.caller.query(intent);
-      if (!r.ok) {
+      const cat = await this.mcp.catalog();
+      if (!cat.ok) {
+        this.state = "OPERATION_FAILED";
+        this.stateReason = cat.error ?? "reusery_catalog failed";
+        return { grade: "UNAVAILABLE", outcome: "NEEDS_VERIFICATION", candidates: [], note: this.stateReason, state: "OPERATION_FAILED" };
+      }
+      this.state = "READY";
+      const prims = cat.primitives ?? [];
+      this.stateReason = `catalog read: ${prims.length} primitives`;
+      const lower = intent.toLowerCase();
+      const words = lower.split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+      const matched = prims.filter((p) => {
+        const hay = `${p.name} ${p.description}`.toLowerCase();
+        return words.some((w) => hay.includes(w));
+      });
+      if (matched.length === 0) {
         return {
-          grade: "UNAVAILABLE",
+          grade: "EXECUTED",
           outcome: "NEEDS_VERIFICATION",
           candidates: [],
-          note: r.error ?? "query failed",
+          note: `catalog consulted (${prims.length} primitives): no keyword match for this intent`,
+          state: "READY",
         };
       }
+      const first = matched[0];
+      if (!first) {
+        return { grade: "EXECUTED", outcome: "NEEDS_VERIFICATION", candidates: [], note: "catalog consulted: no match", state: "READY" };
+      }
+      // Real deterministic decision from Reusery under the baseline
+      // policy with an explicitly empty candidate set.
+      const res = await this.mcp.resolve(first.primitive_id, first.contract_id, []);
+      const outcome = (res.ok ? (res.outcome ?? res.status) : null) as ReuseOutcome | null;
+      const reasons = res.ok && res.reasons ? ` reasons: ${res.reasons.slice(0, 3).join("; ")}` : "";
       return {
         grade: "EXECUTED",
-        outcome: r.outcome ?? "NEEDS_VERIFICATION",
-        candidates: r.candidates ?? [],
-        note: `reusery outcome: ${r.outcome ?? "NEEDS_VERIFICATION"}`,
+        outcome: outcome ?? "NEEDS_VERIFICATION",
+        candidates: matched.slice(0, 5).map((m) => `${m.name} (${m.primitive_id})`),
+        note: `reusery decision for '${first.name}': ${outcome ?? res.status ?? "unknown"}${reasons}`,
+        state: "READY",
       };
     } catch (e) {
-      return {
-        grade: "UNAVAILABLE",
-        outcome: "NEEDS_VERIFICATION",
-        candidates: [],
-        note: `threw: ${(e as Error).message}`,
-      };
+      this.state = "UNREACHABLE";
+      this.stateReason = `threw: ${(e as Error).message}`;
+      return { grade: "UNAVAILABLE", outcome: "NEEDS_VERIFICATION", candidates: [], note: this.stateReason, state: "UNREACHABLE" };
     }
   }
 }

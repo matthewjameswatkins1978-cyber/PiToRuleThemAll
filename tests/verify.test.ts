@@ -86,8 +86,16 @@ describe("verify", () => {
       assert.equal(o.receipt.intent.spec_revision, 1);
       assert.equal(o.promptWithheld, true);
       assert.ok(fs.existsSync(o.receiptFile));
-      assert.equal(o.receipt.tests.executed, 1);
+      // Plain-script inner suite: exit 0 but counts unparseable → honest zeros + unknown.
+      assert.equal(o.receipt.tests.executed, 0);
+      assert.equal(o.receipt.tests.discovered, 0);
+      assert.ok((o.receipt.unknowns ?? []).some((u) => u.includes("counts unparseable")));
       assert.equal(o.receipt.subject.remote_verified, false);
+      // Integrations section: truthful states, NOT_NEEDED distinct from missing.
+      assert.ok(o.receipt.integrations?.["lantern"]);
+      assert.ok(o.receipt.integrations?.["reusery"]);
+      assert.ok(o.receipt.integrations?.["telltail"]);
+      assert.ok(o.receipt.integrations?.["tethers"]);
     } finally {
       cleanup(dir);
     }
@@ -147,7 +155,7 @@ describe("verify", () => {
       cleanup(dir);
     }
   });
-  it("classifies builder claims only after the initial verdict", async () => {
+  it("reconciles builder claims: supported + not_checked", async () => {
     const { dir, specId } = split(await setupRepo());
     try {
       const o = await verify(dir, deps(), {
@@ -156,8 +164,55 @@ describe("verify", () => {
         spawn: fakeSpawnFor(passResult),
       });
       const bc = o.receipt.builder_claims;
-      assert.equal(bc?.not_checked?.length ?? 0, 2);
-      assert.equal(bc?.supported?.length ?? 0, 0);
+      assert.equal(bc?.supported?.length ?? 0, 1);
+      assert.equal(bc?.not_checked?.length ?? 0, 1);
+      assert.equal(bc?.contradicted?.length ?? 0, 0);
+    } finally {
+      cleanup(dir);
+    }
+  });
+  it("contradicts a false clean-tree claim on a dirty repo", async () => {
+    const { dir, specId } = split(await setupRepo());
+    try {
+      fs.writeFileSync(path.join(dir, "dirty.txt"), "x", "utf-8");
+      const o = await verify(dir, deps(), {
+        specId,
+        builderReport: "- tree clean\n",
+        spawn: fakeSpawnFor(passResult),
+      });
+      assert.equal(o.receipt.builder_claims?.contradicted?.length ?? 0, 1);
+    } finally {
+      cleanup(dir);
+    }
+  });
+  it("spec-only review never passes and skips the spawn", async () => {
+    const { dir, specId } = split(await setupRepo());
+    try {
+      let spawned = false;
+      const o = await verify(dir, deps(), {
+        specId,
+        specOnly: true,
+        spawn: async (...a) => {
+          spawned = true;
+          return fakeSpawnFor(passResult)(...a);
+        },
+      });
+      assert.equal(spawned, false);
+      assert.deepEqual(o.verifierSpawnArgs, []);
+      assert.ok(o.receipt.verdict === "INCONCLUSIVE" || o.receipt.verdict === "FAIL");
+      assert.ok((o.receipt.unknowns ?? []).some((u) => u.includes("spec-only")));
+    } finally {
+      cleanup(dir);
+    }
+  });
+  it("COMPROMISED reviewer integrity cannot downgrade", async () => {
+    const { dir, specId } = split(await setupRepo());
+    try {
+      const o = await verify(dir, deps(), {
+        specId,
+        spawn: fakeSpawnFor({ ...passResult, integrity: "COMPROMISED", integritySignals: ["tamper"] }),
+      });
+      assert.equal(o.receipt.integrity, "COMPROMISED");
     } finally {
       cleanup(dir);
     }

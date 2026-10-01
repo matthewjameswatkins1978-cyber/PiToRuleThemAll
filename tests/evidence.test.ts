@@ -61,21 +61,22 @@ describe("discoverTestCommand", () => {
 describe("parseTestSummary", () => {
   it("parses node --test output", () => {
     const s = parseTestSummary(["x"], "# pass 12\n# fail 1\n");
-    assert.deepEqual(s, { passed: 12, failed: 1 });
+    assert.deepEqual(s, { total: 13, passed: 12, failed: 1 });
   });
   it("parses node --test spec-reporter output", () => {
     const s = parseTestSummary(["x"], "ℹ tests 125\nℹ pass 125\nℹ fail 0\n");
-    assert.deepEqual(s, { passed: 125, failed: 0 });
+    assert.deepEqual(s, { total: 125, passed: 125, failed: 0 });
   });
   it("parses cargo output", () => {
     const s = parseTestSummary(
       ["x"],
       "test result: ok. 12 passed; 0 failed; finished",
     );
-    assert.deepEqual(s, { passed: 12, failed: 0 });
+    assert.deepEqual(s, { total: 12, passed: 12, failed: 0 });
   });
   it("returns nulls when unparseable", () => {
     assert.deepEqual(parseTestSummary(["x"], "hello"), {
+      total: null,
       passed: null,
       failed: null,
     });

@@ -119,4 +119,79 @@ export function classifyBuilderClaim(c: BuilderClaim): ClaimClass {
   return "UNSUPPORTED";
 }
 
+const INTEGRITY_RANK: Record<Integrity, number> = {
+  OK: 0,
+  SUSPECT: 1,
+  COMPROMISED: 2,
+};
+
+/**
+ * Final integrity is the STRONGEST signal from every source.
+ * Never downgrades: COMPROMISED from any source survives.
+ */
+export function maxIntegrity(
+  ...values: (Integrity | undefined | null)[]
+): Integrity {
+  let best: Integrity = "OK";
+  for (const v of values) {
+    if (v && INTEGRITY_RANK[v] > INTEGRITY_RANK[best]) best = v;
+  }
+  return best;
+}
+
+/**
+ * Tamper evaluation (consequential signals). Policy edits alone are a
+ * review flag, not a stop. But QA-harness modification COMBINED with
+ * evidence-evasion patterns (weakened tests, unexecuted-but-claimed
+ * tests) is a defeat attempt: STOP_RECOMMENDED with evidence.
+ * Verdict and integrity stay separate axes throughout.
+ */
+export function evaluateTamper(input: {
+  policyChanged: string[];
+  harnessChanged: string[];
+  testWeakened: boolean;
+  testsClaimedButNotExecuted: boolean;
+}): { integrity: Integrity; stopReasons: string[]; risks: string[] } {
+  const risks: string[] = [];
+  const stopReasons: string[] = [];
+  let integrity: Integrity = "OK";
+  if (input.policyChanged.length > 0) {
+    risks.push(
+      `QA policy changed on reviewed branch (judged by trusted baseline, requires explicit review): ${input.policyChanged.join(", ")}`,
+    );
+  }
+  if (input.harnessChanged.length > 0) {
+    integrity = "SUSPECT";
+    risks.push(
+      `QA harness modified on reviewed branch (verification tooling itself changed): ${input.harnessChanged.join(", ")}`,
+    );
+  }
+  const evasion =
+    input.testWeakened || input.testsClaimedButNotExecuted;
+  if (input.harnessChanged.length > 0 && evasion) {
+    integrity = "COMPROMISED";
+    stopReasons.push(
+      `QA defeat pattern: harness modified AND evidence evasion (${[
+        input.testWeakened ? "tests weakened" : "",
+        input.testsClaimedButNotExecuted
+          ? "tests claimed but not executed"
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" + ")}); continuing would grade compromised verification`,
+    );
+  }
+  return { integrity, stopReasons, risks };
+}
+
+/** Files whose modification on the reviewed branch means QA tooling itself changed. */
+export const HARNESS_PATHS = [
+  "src/qa/",
+  "src/evidence/",
+  "src/reuse/",
+  "schemas/",
+  "agents/verifier.md",
+  "extensions/pi-qa/",
+];
+
 export { WEAK_GRADES };

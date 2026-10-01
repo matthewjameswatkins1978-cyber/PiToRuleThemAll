@@ -18,6 +18,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "check": "npm run format:check && npm run typecheck && npm test",
+    "check:live": "npm run format:check && npm run typecheck && npm run test:live",
     "test": "node scripts/run-tests.mjs",
     "test:live": "node scripts/run-tests.mjs --live"
   },
