@@ -374,6 +374,7 @@ export async function handleQa(
       async (reg) => {
         const rows = await doctor({
           registry: reg,
+          repoRoot,
           smokeVerifier: smoke
             ? async () => {
                 const { runIndependentReview } =
@@ -519,8 +520,77 @@ export async function handleKeeper(
     return;
   }
 
+  // M6: one invocation = one cross-client proof record.
+  if (sub === "proof") {
+    const reg = await factory(ctx.cwd);
+    const session = await reg.lanternSession();
+    if (!session) {
+      ctx.ui.notify(
+        `Lantern: ${reg.lantern.describe().state} — ${reg.lantern.describe().reason}. Not inventing memory.`,
+        "warning",
+      );
+      return;
+    }
+    try {
+      const { createProof, buildReceipt, saveReceipt, renderHandoff } =
+        await import("../../src/crossclient/proof.js");
+      const { runCommand } = await import("../../src/evidence/commands.js");
+      const head = await runCommand("git", ["rev-parse", "HEAD"], {
+        cwd: ctx.cwd,
+        timeoutMs: 15_000,
+        maxChars: 256,
+      });
+      const sha =
+        head.exitCode === 0
+          ? (head.stdout.trim().split("\n")[0] ?? "unknown")
+          : "unknown";
+      const proof = await createProof(session.client, {
+        project: "PiToRuleThemAll",
+        sha,
+        reconnect: async () => {
+          const fresh = await reg.lanternSession();
+          return fresh ? { client: fresh.client, close: fresh.close } : null;
+        },
+      });
+      const receipt = buildReceipt(proof, { repo: ctx.cwd, sha });
+      const file = saveReceipt(ctx.cwd, receipt);
+      ctx.ui.notify(
+        [
+          "Cross-client proof",
+          "",
+          `Marker: ${proof.marker}`,
+          "",
+          `Memory ID: ${proof.memoryId}`,
+          "",
+          `Kind: ${proof.kind}`,
+          "",
+          "Expected provenance:",
+          ...proof.provenance.map((t) => `  ${t}`),
+          "",
+          "ChatGPT query:",
+          `  ${proof.marker}`,
+          "",
+          "Status: WAITING_FOR_CHATGPT",
+          `Receipt: ${file}`,
+          "",
+          "--- handoff (paste to Lucy) ---",
+          renderHandoff(receipt),
+        ].join("\n"),
+        "info",
+      );
+    } catch (e) {
+      ctx.ui.notify(
+        `Proof failed (no partial proof stored): ${(e as Error).message}`,
+        "error",
+      );
+    } finally {
+      await session.close();
+    }
+    return;
+  }
+
   ctx.ui.notify(
-    "Usage: /keeper [status | context <query> | why <id>]",
+    "Usage: /keeper [status | context <query> | why <id> | proof]",
     "error",
   );
 }
@@ -531,7 +601,8 @@ export function registerQaExtension(pi: PiApi): void {
     handler: async (args, ctx) => handleQa(args, ctx, pi),
   });
   pi.registerCommand("keeper", {
-    description: "Lantern Keeper memory/provenance (bounded, never invented)",
+    description:
+      "Lantern Keeper memory/provenance/proof (bounded, never invented)",
     handler: async (args, ctx) => handleKeeper(args, ctx, pi),
   });
 

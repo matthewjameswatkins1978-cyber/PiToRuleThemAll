@@ -15,8 +15,12 @@ function send(id, result, error) {
   process.stdout.write(JSON.stringify(msg) + "\n");
 }
 
+const NOISE = process.env.FAKE_MCP_NOISE === "1";
+
 rl.on("line", (line) => {
   if (!line.trim()) return;
+  // Protocol-hygiene fixture: log line on the protocol stream.
+  if (NOISE) process.stdout.write("server log line that is not JSON-RPC\n");
   let req;
   try {
     req = JSON.parse(line);

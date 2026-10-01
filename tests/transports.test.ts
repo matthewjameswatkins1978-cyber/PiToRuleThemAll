@@ -63,6 +63,25 @@ describe("StdioMcpClient", () => {
       await c.stop();
     }
   });
+  it("non-JSON stdout is counted, not silently swallowed", async () => {
+    const s = server();
+    const c = new StdioMcpClient({
+      command: s.command,
+      args: s.args,
+      timeoutMs: 10_000,
+      env: { FAKE_MCP_NOISE: "1" },
+    });
+    await c.start();
+    try {
+      const out = await c.callTool<{ echo: unknown }>("echo", { a: 1 });
+      assert.deepEqual(out, { echo: { a: 1 } });
+      const notes = c.protocolNotes();
+      assert.ok(notes.nonJsonLines >= 1, "expected protocol warnings");
+      assert.ok(notes.sample.length > 0);
+    } finally {
+      await c.stop();
+    }
+  });
   it("missing binary is a clear startup error", async () => {
     const c = new StdioMcpClient({
       command: "definitely-not-a-server-zzz",
