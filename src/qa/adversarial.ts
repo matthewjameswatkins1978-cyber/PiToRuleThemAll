@@ -43,7 +43,7 @@ export function detectWeakenedTests(diffText: string): Detection {
     /\.skip\(/,
     /\.todo\(/,
     /\.only\(/,
-    /test\.skip|it\.skip|describe\.skip|xit\(|xdescribe\(/,
+    /test\.skip|it\.skip|describe\.skip|\bxit\(|\bxdescribe\(/,
     /expect\(true\)\.toBe\(true\)|assert\.ok\(true\)/,
     /expect\(.*\)\.toBeTruthy\(\)\s*;\s*\/\/\s*was:/i,
   ];

@@ -138,6 +138,10 @@ describe("adversarial fixtures", () => {
     );
     assert.equal(w.detected, false);
   });
+  it("process.exit is not xit (word boundary)", () => {
+    const w = detectWeakenedTests("+ if (r.status !== 0) process.exit(r.status ?? 1);");
+    assert.equal(w.detected, false);
+  });
   it("real skip calls still detected after quote stripping", () => {
     const w = detectWeakenedTests(
       "+ test.skip('loads config', () => {\\n+ });",

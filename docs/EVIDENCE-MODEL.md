@@ -26,3 +26,9 @@ Every important QA assertion carries one evidence grade:
 5. Reuse reports `searched / found / not_checked` in search order
    (§9): same file → module → repo → siblings → Lantern → native →
    installed dependency → Reusery → new implementation.
+6. No nested test runners: node skips `node --test` invocations made from
+   inside its own test process (recursive-runner guard, exit 0, zero
+   tests). QA's `runTests` therefore executes the repo's own command as a
+   child process and parses its output — and QA's own unit tests use
+   plain-script inner suites so an EXECUTED record always means tests
+   really ran.

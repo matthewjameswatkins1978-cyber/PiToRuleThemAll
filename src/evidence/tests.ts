@@ -84,8 +84,10 @@ export function parseTestSummary(
       passed: Number(m[1]),
       failed: m[2] !== undefined ? Number(m[2]) : 0,
     };
-  // node --test: "# pass 12\n# fail 0"
+  // node --test TAP: "# pass 12\n# fail 0"; spec reporter: "ℹ pass 12 ... ℹ fail 0"
   m = /# pass\s+(\d+)[\s\S]*?# fail\s+(\d+)/.exec(text);
+  if (m) return { passed: Number(m[1]), failed: Number(m[2]) };
+  m = /ℹ pass\s+(\d+)[\s\S]*?ℹ fail\s+(\d+)/.exec(text);
   if (m) return { passed: Number(m[1]), failed: Number(m[2]) };
   return { passed: null, failed: null };
 }
