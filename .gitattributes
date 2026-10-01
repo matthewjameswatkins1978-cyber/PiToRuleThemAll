@@ -1,0 +1,3 @@
+# Normalize line endings to LF in the repository on all platforms.
+# (Without this, Windows autocrlf churn breaks prettier --check.)
+* text=auto eol=lf
