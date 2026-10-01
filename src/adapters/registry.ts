@@ -58,8 +58,46 @@ async function serveReady(url: string, timeoutMs = 3000): Promise<boolean> {
     const body = (await r.json()) as { ready?: boolean };
     return body.ready === true;
   } catch {
-    return false;
+    // Fall back to TCP: some runtimes (including Pi's extension host)
+    // restrict global fetch, while the local port is genuinely open.
+    // The bridge's own lantern_status gives the authoritative answer.
+    return tcpOpen(url, timeoutMs);
   }
+}
+
+function tcpOpen(url: string, timeoutMs: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    let host = "127.0.0.1";
+    let port = 4317;
+    try {
+      const u = new URL(url);
+      host = u.hostname || host;
+      port = Number(u.port) || (u.protocol === "https:" ? 443 : 80);
+    } catch {
+      resolve(false);
+      return;
+    }
+    import("node:net").then(({ default: net }) => {
+      const sock = net.createConnection({ host, port });
+      const done = (ok: boolean) => {
+        try {
+          sock.destroy();
+        } catch {
+          /* ignore */
+        }
+        resolve(ok);
+      };
+      const timer = setTimeout(() => done(false), timeoutMs);
+      sock.on("connect", () => {
+        clearTimeout(timer);
+        done(true);
+      });
+      sock.on("error", () => {
+        clearTimeout(timer);
+        done(false);
+      });
+    }).catch(() => resolve(false));
+  });
 }
 
 function mcpCaller(client: StdioMcpClient, missingToolHint: string): LanternCaller & { close(): Promise<void> } {
@@ -150,10 +188,10 @@ export async function createRegistry(repoRoot: string, env: RegistryEnv = proces
 
   if (!fileExists(lanternBin)) {
     lanternReason = `NOT_CONFIGURED: bridge binary missing (${lanternBin}); build with cargo build -p lighting`;
-    lantern = new LanternClient(null);
+    lantern = new LanternClient(null, lanternReason);
   } else if (!(await serveReady(lanternUrl))) {
     lanternReason = `UNREACHABLE: service not ready at ${lanternUrl} (start: cargo run --manifest-path <lantern>/Cargo.toml -p lighting -- serve)`;
-    lantern = new LanternClient(null);
+    lantern = new LanternClient(null, lanternReason);
   } else {
     lanternReason = `READY: ${lanternBin} → ${lanternUrl}`;
     const openSession = async (): Promise<LanternSession> => {
@@ -179,9 +217,14 @@ export async function createRegistry(repoRoot: string, env: RegistryEnv = proces
   const dbUrl = env["REUSERY_DATABASE_URL"];
   let reusery: ReuseryClient;
   if (!fileExists(reuseryBin)) {
-    reusery = new ReuseryClient(null);
+    reusery = new ReuseryClient(null); // describe(): NOT_CONFIGURED (binary missing)
   } else if (!dbUrl) {
-    reusery = new ReuseryClient(null);
+    // Bridge exists but no credential: distinct, actionable diagnosis.
+    // The password lives in the environment, never in a file.
+    reusery = new ReuseryClient(
+      null,
+      `bridge present (${reuseryBin}) but REUSERY_DATABASE_URL is not set in this process; export it (see Reusery .env.example) to enable`,
+    );
   } else {
     reusery = new ReuseryClient(new StdioReuseryMcp(reuseryBin, dbUrl, repoRoot));
   }

@@ -69,25 +69,27 @@ export async function doctor(opts: {
     detail: lan?.reason ?? "unknown",
   });
 
-  const tt = described.get("telltail");
+  // Probe, don't just describe: doctor pays for one live version call each.
+  const ttProbe = await opts.registry.telltail.probe().catch(() => ({ ok: false as const, version: "", detail: "probe threw" }));
   rows.push({
     name: "Telltail",
-    state: tt?.state === "READY" ? "READY" : "UNAVAILABLE",
-    detail: tt?.reason ?? "unknown",
+    state: ttProbe.ok ? "READY" : "UNAVAILABLE",
+    detail: ttProbe.ok ? `telltail ${ttProbe.version}` : ttProbe.detail,
   });
 
-  const re = described.get("reusery");
+  // Prove Reusery wiring with a read-only catalog call (cheap, local DB).
+  const rePing = await opts.registry.reusery.ping().catch(() => ({ ok: false as const, primitives: 0, note: "ping threw" }));
   rows.push({
     name: "Reusery",
-    state: re?.state === "READY" ? "READY" : "OPTIONAL",
-    detail: re?.reason ?? "unknown",
+    state: rePing.ok ? "READY" : "OPTIONAL",
+    detail: rePing.ok ? `catalog: ${rePing.primitives} primitives` : rePing.note,
   });
 
-  const th = described.get("tethers");
+  const thProbe = await opts.registry.tethers.probe().catch(() => ({ ok: false as const, version: "", detail: "probe threw" }));
   rows.push({
     name: "Tethers",
-    state: th?.state === "READY" ? "READY" : "UNAVAILABLE",
-    detail: th?.reason ?? "unknown",
+    state: thProbe.ok ? "READY" : "UNAVAILABLE",
+    detail: thProbe.ok ? `authority boundary present (tethers ${thProbe.version})` : thProbe.detail,
   });
 
   if (opts.smokeVerifier) {

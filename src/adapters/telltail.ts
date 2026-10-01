@@ -25,6 +25,8 @@ export interface TelltailCommand {
   exe: string;
   baseArgs: string[];
   source: string;
+  /** Working directory for module-aware invocations (go run). */
+  cwd?: string;
 }
 
 export interface TelltailFinding {
@@ -75,7 +77,9 @@ export async function resolveTelltailCommand(opts: {
   const go = await which("go");
   const repo = opts.repoDir ?? process.env["TELLTAIL_REPO"] ?? "D:\\Projects\\Telltail";
   if (go && fs.existsSync(path.join(repo, "go.mod"))) {
-    return { exe: go, baseArgs: ["run", path.join(repo, "cmd", "telltail")], source: `go run in ${repo}` };
+    // cwd MUST be the module dir: `go run <abs>` otherwise resolves the
+    // caller's module context (observed failure inside PiToRuleThemAll).
+    return { exe: go, baseArgs: ["run", path.join(repo, "cmd", "telltail")], source: `go run in ${repo}`, cwd: repo };
   }
   return null;
 }
@@ -110,7 +114,7 @@ export class TelltailClient {
   private async invoke(args: string[], opts: { cwd?: string; timeoutMs?: number } = {}) {
     if (!this.cmd) throw new Error("telltail not configured");
     return runCommand(this.cmd.exe, [...this.cmd.baseArgs, ...args], {
-      cwd: opts.cwd,
+      cwd: opts.cwd ?? this.cmd.cwd,
       timeoutMs: opts.timeoutMs ?? 120_000,
     });
   }

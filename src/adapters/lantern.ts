@@ -218,10 +218,15 @@ export class LanternClient {
   private stateReason = "no Lantern caller injected";
   private version: string | undefined;
 
-  constructor(private caller: LanternCaller | null) {
+  constructor(
+    private caller: LanternCaller | null,
+    private absentReason = "no Lantern MCP caller (server not connected)",
+  ) {
     if (caller) {
       this.state = "UNREACHABLE";
       this.stateReason = "caller present but status not yet checked";
+    } else {
+      this.stateReason = absentReason;
     }
   }
 
@@ -233,7 +238,7 @@ export class LanternClient {
     return {
       name: "lantern",
       state: this.caller ? this.state : "NOT_CONFIGURED",
-      reason: this.caller ? this.stateReason : "no Lantern MCP caller (server not connected)",
+      reason: this.caller ? this.stateReason : this.absentReason,
       grade: this.state === "READY" ? "EXECUTED" : "UNAVAILABLE",
       version: this.version,
     };

@@ -65,10 +65,15 @@ export class ReuseryClient {
   private state: IntegrationState = "NOT_CONFIGURED";
   private stateReason = "no Reusery MCP bridge";
 
-  constructor(private mcp: ReuseryMcp | null) {
+  constructor(
+    private mcp: ReuseryMcp | null,
+    private absentReason = "no Reusery MCP bridge (needs PostgreSQL-backed reusery mcp)",
+  ) {
     if (mcp) {
       this.state = "UNREACHABLE";
       this.stateReason = "bridge present but catalog not yet read";
+    } else {
+      this.stateReason = absentReason;
     }
   }
 
@@ -80,9 +85,23 @@ export class ReuseryClient {
     return {
       name: "reusery",
       state: this.mcp ? this.state : "NOT_CONFIGURED",
-      reason: this.mcp ? this.stateReason : "no Reusery MCP bridge (needs PostgreSQL-backed reusery mcp)",
+      reason: this.mcp ? this.stateReason : this.absentReason,
       grade: this.state === "READY" ? "EXECUTED" : "UNAVAILABLE",
     };
+  }
+
+  /** Read-only catalog probe (no gate, no resolve): proves wiring. */
+  async ping(): Promise<{ ok: boolean; primitives: number; note: string }> {
+    if (!this.mcp) return { ok: false, primitives: 0, note: this.absentReason };
+    try {
+      const cat = await this.mcp.catalog();
+      if (!cat.ok) return { ok: false, primitives: 0, note: cat.error ?? "catalog failed" };
+      this.state = "READY";
+      this.stateReason = `catalog read: ${(cat.primitives ?? []).length} primitives`;
+      return { ok: true, primitives: (cat.primitives ?? []).length, note: this.stateReason };
+    } catch (e) {
+      return { ok: false, primitives: 0, note: `threw: ${(e as Error).message}` };
+    }
   }
 
   /**

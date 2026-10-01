@@ -54,6 +54,14 @@ export function platformSpawn(
   args: string[],
 ): { exe: string; argv: string[] } {
   if (process.platform !== "win32") return { exe: cmd, argv: args };
+  // A pathed executable (C:\..., .exe) spawns DIRECTLY: CreateProcess
+  // quotes spaced image paths correctly. Routing a spaced exe through
+  // `cmd /s /c` strips its quotes (observed: 'C:\Program' is not
+  // recognized). Bare words (npm, git, sg, ...) have no spaces and go
+  // through cmd so PATHEXT resolves .cmd/.bat shims.
+  if (/\.exe$/i.test(cmd) || cmd.includes("\\") || cmd.includes("/")) {
+    return { exe: cmd, argv: args };
+  }
   return { exe: "cmd.exe", argv: ["/d", "/s", "/c", cmd, ...args] };
 }
 
