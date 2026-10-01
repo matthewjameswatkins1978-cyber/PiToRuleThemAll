@@ -34,12 +34,13 @@ structural reuse search).
 
 ## Commands
 
-| Command                                                                  | Purpose                                                              |
-| ------------------------------------------------------------------------ | -------------------------------------------------------------------- |
-| `/qa preflight <request>`                                                | Freeze intent → QA spec revision 1, reuse scan, depth. No PASS/FAIL. |
-| `/qa verify [specId] [--report <file>] [--claim-tests] [--require-push]` | Independent verification → machine-readable receipt.                 |
-| `/qa receipt [id] [--json]`                                              | Compact receipt (default) or full JSON.                              |
-| `/keeper [status \| context <q> \| why <id>]`                            | Lantern memory/provenance. Honest UNAVAILABLE when disconnected.     |
+| Command                                                                                                         | Purpose                                                                     |
+| --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `/qa preflight <request>`                                                                                       | Freeze intent → QA spec revision 1, reuse scan, depth. No PASS/FAIL.        |
+| `/qa verify [specId] [--report "path"] [--claim-tests] [--require-push] [--telltail] [--reusery] [--spec-only]` | Independent verification → machine-readable receipt.                        |
+| `/qa receipt [id] [--json]`                                                                                     | Compact receipt (default) or full JSON.                                     |
+| `/qa doctor [--smoke]`                                                                                          | Integration diagnostics.                                                    |
+| `/keeper [status \| context <q> \| why <id>]`                                                                   | One-action Lantern memory/provenance. Honest UNAVAILABLE when disconnected. |
 
 Model-callable live Lantern tools (in-session): `keeper_context`, `keeper_why`.
 
@@ -91,14 +92,33 @@ required). Nothing is invented; see `docs/QA-CONTRACT.md`.
 
 ```bash
 npm install
-npm run typecheck
-npm run test        # deterministic suite (no network, no model)
+npm run check       # format:check + typecheck + deterministic tests
+npm run check:live  # + opt-in live integrations (Lantern service, model)
 ```
 
-Live Lantern proof (opt-in, needs Lantern MCP + marker setup):
+Ordinary `npm run check` never makes model calls and needs no network.
+Live integrations are explicit (`PI_QA_LIVE_LANTERN=1`, `/qa doctor
+--smoke`, `/qa verify --telltail`).
 
-```bash
-PI_QA_LIVE_LANTERN=1 npm test
-```
+No GitHub Actions: for this private single-maintainer repo, local
+deterministic gates plus live dogfood give the independent value; hosted
+CI would only re-run what `npm run check` already proves. Revisit if a
+second platform ever matters.
+
+## Environment
+
+| Variable               | Purpose                                          | Default                                      |
+| ---------------------- | ------------------------------------------------ | -------------------------------------------- |
+| `PI_QA_LANTERN_BIN`    | Lantern bridge binary                            | `<lantern-keeper>/target/debug/lighting.exe` |
+| `PI_QA_LANTERN_URL`    | Lantern service URL                              | `http://127.0.0.1:4317`                      |
+| `PI_QA_REUSERY_BIN`    | Reusery bridge binary                            | `~/.pi/agent/bin/reusery.exe`                |
+| `REUSERY_DATABASE_URL` | Reusery Postgres (secret: env only, never files) | _none_                                       |
+| `TELLTAIL_REPO`        | Telltail checkout for `go run` fallback          | `D:\Projects\Telltail`                       |
+| `PI_QA_LIVE_LANTERN`   | enable the live M0 test                          | unset (skipped)                              |
+
+Pi MCP: Lantern is configured in `~/.pi/agent/mcp-adapter.json`
+(the adapter owns MCP sessions; Pi's legacy `mcp.json` is left alone so
+servers never double-start). `/qa` and `/keeper` additionally reach
+Lantern through the registry's own stdio bridge sessions.
 
 See `docs/M0-CONNECTIVITY.md`, `docs/ARCHITECTURE.md`, `docs/EVIDENCE-MODEL.md`.
