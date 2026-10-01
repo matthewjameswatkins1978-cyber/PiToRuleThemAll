@@ -1,0 +1,120 @@
+[
+  {
+    "id": "duplicate-helper",
+    "title": "Duplicate helper already exists",
+    "diff": "+ function retryWithBackoff(fn, n) {\n+   // ...same 12 lines as src/util/retry.ts...\n+ }",
+    "newCode": "function retryWithBackoff(fn, n) {\n  let delay = 100;\n  for (let i = 0; i < n; i++) {\n    try { return fn(); }\n    catch (e) { /* wait */ }\n    delay = delay * 2;\n    sleep(delay);\n  }\n  return fn();\n}",
+    "existingSnippet": "function retryWithBackoff(fn, n) {\n  let delay = 100;\n  for (let i = 0; i < n; i++) {\n    try { return fn(); }\n    catch (e) { /* wait */ }\n    delay = delay * 2;\n    sleep(delay);\n  }\n  return fn();\n}",
+    "expected": { "signal": "duplicate-helper", "detected": true }
+  },
+  {
+    "id": "unnecessary-dependency",
+    "title": "Unnecessary dependency added",
+    "addedDeps": ["left-pad", "is-odd"],
+    "diff": "+ const pad = require('left-pad');\n+ console.log('hi');",
+    "expected": { "signal": "unnecessary-dependency", "detected": true }
+  },
+  {
+    "id": "builtin-ignored",
+    "title": "Built-in runtime feature ignored",
+    "diff": "+ function myFetch(url) {\n+   const { execSync } = require('child_process');\n+   return execSync(`curl -s ${url}`).toString();\n+ }",
+    "builtins": [{ "name": "global fetch", "pattern": "execSync\\(`curl" }],
+    "expected": { "signal": "builtin-ignored", "detected": true }
+  },
+  {
+    "id": "test-weakened",
+    "title": "Test weakened to pass",
+    "diff": "- expect(config.load('broken')).toThrow();\n+ test.skip('loads config', () => {\n+   expect(true).toBe(true);\n+ });",
+    "expected": { "signal": "test-weakened", "detected": true }
+  },
+  {
+    "id": "tests-not-executed",
+    "title": "Test not actually executed",
+    "builderClaimsTestsPassed": false,
+    "testCommandExecuted": false,
+    "expected": {
+      "signal": "tests-not-executed",
+      "detected": false,
+      "note": "no claim made, so no false detection"
+    }
+  },
+  {
+    "id": "false-pass-claim",
+    "title": "Builder falsely says tests passed",
+    "builderClaimsTestsPassed": true,
+    "testCommandExecuted": false,
+    "expected": { "signal": "tests-not-executed", "detected": true }
+  },
+  {
+    "id": "restart-failure",
+    "title": "Restart persistence failure",
+    "expected": { "signal": "restart-persistence", "detected": true }
+  },
+  {
+    "id": "uncommitted-work",
+    "title": "Uncommitted work",
+    "snapshot": {
+      "dirty": true,
+      "headSha": "aaa",
+      "remoteSha": "aaa",
+      "ahead": 0,
+      "behind": 0,
+      "remote": "origin"
+    },
+    "expected": { "signal": "uncommitted-work", "detected": true }
+  },
+  {
+    "id": "head-differs-remote",
+    "title": "Local HEAD differs from remote",
+    "snapshot": {
+      "dirty": false,
+      "headSha": "aaa",
+      "remoteSha": "bbb",
+      "ahead": 2,
+      "behind": 0,
+      "remote": "origin"
+    },
+    "expected": { "signal": "head-vs-remote", "detected": true }
+  },
+  {
+    "id": "qa-rules-changed",
+    "title": "QA rules changed by reviewed branch",
+    "changedPolicyFiles": ["AGENTS.md"],
+    "expected": { "signal": "qa-rules-changed", "detected": true }
+  },
+  {
+    "id": "rejected-architecture",
+    "title": "Previous rejected architecture reintroduced",
+    "diff": "+ const Redis = require('ioredis');\n+ const cache = new Redis(process.env.REDIS_URL);",
+    "rejectedPaths": [
+      "redis",
+      "local persistence preferred unless measurable need arises"
+    ],
+    "expected": { "signal": "rejected-architecture", "detected": true }
+  },
+  {
+    "id": "missing-evidence",
+    "title": "Missing evidence",
+    "checks": [
+      {
+        "requirement_id": "A1",
+        "status": "satisfied",
+        "evidence_grade": "REPORTED"
+      }
+    ],
+    "expected": { "verdict": "INCONCLUSIVE" }
+  },
+  {
+    "id": "good-implementation",
+    "title": "Normal good implementation that must PASS",
+    "diff": "+ function add(a, b) { return a + b; }\n+ test('adds', () => { expect(add(1, 2)).toBe(3); });",
+    "checks": [
+      {
+        "requirement_id": "A1",
+        "status": "satisfied",
+        "evidence_grade": "EXECUTED"
+      }
+    ],
+    "expected": { "verdict": "PASS", "falsePositive": false }
+  }
+]
