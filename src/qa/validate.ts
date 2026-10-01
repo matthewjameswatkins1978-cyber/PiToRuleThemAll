@@ -173,6 +173,8 @@ export function validateReceipt(
       "tests",
       "builder_claims",
       "lantern",
+      "integrations",
+      "stop_reasons",
       "risks",
       "unknowns",
       "commands",
@@ -284,6 +286,47 @@ export function validateReceipt(
     for (const f of ["discovered", "executed", "passed", "failed"]) {
       if (!Number.isInteger(tests[f]) || (tests[f] as number) < 0)
         errors.push(`receipt.tests.${f}: must be an integer >= 0`);
+    }
+  }
+
+  const stopReasons = doc["stop_reasons"];
+  if (stopReasons !== undefined) {
+    if (
+      !Array.isArray(stopReasons) ||
+      !stopReasons.every((s) => typeof s === "string")
+    ) {
+      errors.push("receipt.stop_reasons: must be string[]");
+    }
+  }
+
+  const integrations = doc["integrations"];
+  if (integrations !== undefined) {
+    if (!isRecord(integrations)) {
+      errors.push("receipt.integrations: must be an object");
+    } else {
+      const states = [
+        "READY",
+        "NOT_CONFIGURED",
+        "UNREACHABLE",
+        "TOOL_MISSING",
+        "OPERATION_FAILED",
+        "DISABLED_BY_POLICY",
+        "NOT_NEEDED",
+      ];
+      for (const [name, entry] of Object.entries(integrations)) {
+        const p = `receipt.integrations.${name}`;
+        if (!isRecord(entry)) {
+          errors.push(`${p}: must be an object`);
+          continue;
+        }
+        checkNoExtras(entry, ["state", "evidence_grade", "reason"], p, errors);
+        if (!states.includes(entry["state"] as string))
+          errors.push(`${p}.state: unknown state`);
+        if (!GRADES.includes(entry["evidence_grade"] as string))
+          errors.push(`${p}.evidence_grade: unknown grade`);
+        if (typeof entry["reason"] !== "string")
+          errors.push(`${p}.reason: must be a string`);
+      }
     }
   }
 

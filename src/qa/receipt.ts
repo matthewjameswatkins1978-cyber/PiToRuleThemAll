@@ -85,6 +85,21 @@ export function renderReceiptCompact(r: QaReceipt): string {
     lines.push("Risks:");
     for (const k of (r.risks ?? []).slice(0, 8)) lines.push(`  - ${k}`);
   }
+  const integ = r.integrations ?? {};
+  const names = Object.keys(integ);
+  if (names.length > 0) {
+    lines.push("Integrations:");
+    for (const n of names) {
+      const e = integ[n];
+      lines.push(
+        `  - ${n}: ${e?.state} [${e?.evidence_grade}] ${e?.reason ?? ""}`.trimEnd(),
+      );
+    }
+  }
+  if ((r.stop_reasons ?? []).length > 0) {
+    lines.push("Stop reasons:");
+    for (const s of (r.stop_reasons ?? []).slice(0, 5)) lines.push(`  - ${s}`);
+  }
   if (r.verdict === "STOP_RECOMMENDED") {
     lines.push(
       "STOP_RECOMMENDED authorises nothing. Tethers remains the authority boundary.",

@@ -2,7 +2,11 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { looksLikeSecret, runCommand } from "../src/evidence/commands.js";
+import {
+  looksLikeSecret,
+  platformSpawn,
+  runCommand,
+} from "../src/evidence/commands.js";
 import {
   discoverTestCommand,
   parseTestSummary,
@@ -26,6 +30,32 @@ describe("runCommand", () => {
     const r = await runCommand("git", ["--version"], { maxChars: 5 });
     assert.equal(r.truncated, true);
     assert.ok(r.stdout.includes("truncated"));
+  });
+});
+
+describe("platformSpawn (Windows routing)", () => {
+  it("spawns pathed executables directly, bare words via cmd", () => {
+    if (process.platform !== "win32") return;
+    assert.deepEqual(
+      platformSpawn("C:\\Program Files\\Go\\bin\\go.exe", ["version"]),
+      {
+        exe: "C:\\Program Files\\Go\\bin\\go.exe",
+        argv: ["version"],
+      },
+    );
+    const npm = platformSpawn("npm", ["test"]);
+    assert.equal(npm.exe, "cmd.exe");
+    assert.deepEqual(npm.argv, ["/d", "/s", "/c", "npm", "test"]);
+  });
+  it("spaced exe runs without quote-stripping", async () => {
+    if (process.platform !== "win32") return;
+    const r = await runCommand(
+      "C:\\Program Files\\Go\\bin\\go.exe",
+      ["version"],
+      { timeoutMs: 30000, maxChars: 200 },
+    );
+    assert.equal(r.exitCode, 0);
+    assert.ok(r.stdout.includes("go version"));
   });
 });
 
@@ -61,21 +91,22 @@ describe("discoverTestCommand", () => {
 describe("parseTestSummary", () => {
   it("parses node --test output", () => {
     const s = parseTestSummary(["x"], "# pass 12\n# fail 1\n");
-    assert.deepEqual(s, { passed: 12, failed: 1 });
+    assert.deepEqual(s, { total: 13, passed: 12, failed: 1 });
   });
   it("parses node --test spec-reporter output", () => {
     const s = parseTestSummary(["x"], "ℹ tests 125\nℹ pass 125\nℹ fail 0\n");
-    assert.deepEqual(s, { passed: 125, failed: 0 });
+    assert.deepEqual(s, { total: 125, passed: 125, failed: 0 });
   });
   it("parses cargo output", () => {
     const s = parseTestSummary(
       ["x"],
       "test result: ok. 12 passed; 0 failed; finished",
     );
-    assert.deepEqual(s, { passed: 12, failed: 0 });
+    assert.deepEqual(s, { total: 12, passed: 12, failed: 0 });
   });
   it("returns nulls when unparseable", () => {
     assert.deepEqual(parseTestSummary(["x"], "hello"), {
+      total: null,
       passed: null,
       failed: null,
     });

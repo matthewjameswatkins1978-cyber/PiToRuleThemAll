@@ -168,6 +168,38 @@
       },
       "additionalProperties": false
     },
+    "integrations": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["state", "evidence_grade", "reason"],
+        "properties": {
+          "state": {
+            "enum": [
+              "READY",
+              "NOT_CONFIGURED",
+              "UNREACHABLE",
+              "TOOL_MISSING",
+              "OPERATION_FAILED",
+              "DISABLED_BY_POLICY",
+              "NOT_NEEDED"
+            ]
+          },
+          "evidence_grade": {
+            "enum": [
+              "EXECUTED",
+              "OBSERVED",
+              "REPORTED",
+              "INFERRED",
+              "UNAVAILABLE"
+            ]
+          },
+          "reason": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "stop_reasons": { "type": "array", "items": { "type": "string" } },
     "risks": { "type": "array", "items": { "type": "string" } },
     "unknowns": { "type": "array", "items": { "type": "string" } },
     "commands": {

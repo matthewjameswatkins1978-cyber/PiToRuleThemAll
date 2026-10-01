@@ -59,3 +59,34 @@ irreversible state). Selected by consequential seams; recorded on the spec.
 | Reusery        | local checks continue; external search **not** claimed                                         |
 | GitHub/remote  | local verify continues; remote check `UNAVAILABLE`; `INCONCLUSIVE`/`FAIL` if push was required |
 | Model verifier | deterministic evidence preserved; semantic verdict `INCONCLUSIVE`                              |
+
+Diagnoses distinguish `NOT_CONFIGURED`, `UNREACHABLE`, `TOOL_MISSING`,
+`OPERATION_FAILED`, `DISABLED_BY_POLICY` — and, for gated integrations,
+`NOT_NEEDED` (policy chose not to consult) versus `UNAVAILABLE`. The
+receipt's `integrations` section records per-integration state, evidence
+grade and reason.
+
+## Review depth controls expense (§36)
+
+`LIGHT`: git, tests if relevant, local reuse. No Reusery consult, no
+Telltail run. `STANDARD`: + Lantern, semantic verifier, conditional
+Reusery. `DEEP`: + Telltail shift calibration, authority seams,
+additional live probes. `--telltail` / `--reusery` force the gated
+steps; `--spec-only` skips the model verifier (deterministic-only, can
+never PASS).
+
+## Builder claims are reconciled, not trusted (§16)
+
+After the initial verdict, completion claims are matched against frozen
+observed evidence (test counts, exit codes, SHAs, diff stats):
+`SUPPORTED` (numbers match), `CONTRADICTED` (numbers conflict),
+`UNSUPPORTED` (claimed without QA evidence), `NOT_CHECKED` (semantics
+cannot be grounded). No fuzzy optimism.
+
+## Tamper and integrity (§19)
+
+Policy edits are a review flag. Harness modification alone is `SUSPECT`.
+Harness modification **plus** evidence evasion (weakened or
+claimed-but-unexecuted tests) is `COMPROMISED` + `STOP_RECOMMENDED`
+with evidence. Final integrity is the maximum over all sources — never
+downgraded.

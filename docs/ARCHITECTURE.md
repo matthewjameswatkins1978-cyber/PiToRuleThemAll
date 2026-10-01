@@ -36,9 +36,29 @@ Pi (runtime: agent, models, sessions, MCP, tools)
 
 Core logic (`src/`) is testable without starting Pi. All Pi-specific API
 usage lives in `extensions/pi-qa/` behind `src/pi-shim.ts` (structural,
-buildable without Pi installed). Same for the four sibling adapters in
-`src/adapters/`: each degrades to `UNAVAILABLE` with a reason instead of
-inventing results. A Pi upgrade should require at most a thin shim change.
+buildable without Pi installed). A Pi upgrade should require at most a
+thin shim change.
+
+Each integration has one real transport adapter, composed once at the
+Pi boundary by `IntegrationRegistry` (`src/adapters/registry.ts`) and
+injected into core QA — no null callers scattered through user code:
+
+| Integration | Transport                                                                | Notes                                                                        |
+| ----------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| Lantern     | stdio MCP (`lighting mcp` bridge, spec JSON-RPC)                         | needs local service on 127.0.0.1:4317                                        |
+| Reusery     | stdio MCP (`reusery mcp` bridge)                                         | needs `REUSERY_DATABASE_URL`; consults only through the proportionality gate |
+| Telltail    | CLI (`telltail`, else `go run` in its module)                            | deterministic evaluator, never a per-review LLM call                         |
+| Tethers     | CLI (`tethers describe`; `check/preview/plan` only with explicit config) | read-only; QA never authorises                                               |
+
+Design constraint (verified against Pi 0.99.2 types): command handlers
+cannot invoke nested tools, so `/qa` and `/keeper` reach Lantern/Reusery
+through the systems' own documented stdio bridges (same contract as
+Pi's MCP), while the model-callable `keeper_*` tools use native
+`ctx.executeTool`. No model round-trip is spent on deterministic work;
+no MCP framing is invented beyond the stdio transport both servers
+document. Each adapter degrades to an explicit state (`NOT_CONFIGURED
+/ UNREACHABLE / TOOL_MISSING / OPERATION_FAILED / DISABLED_BY_POLICY
+/ NOT_NEEDED`) instead of inventing results.
 
 ## Data flow
 

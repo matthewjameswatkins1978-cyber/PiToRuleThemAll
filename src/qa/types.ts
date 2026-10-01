@@ -44,6 +44,21 @@ export interface RequirementCheck {
   evidence?: Record<string, unknown>;
 }
 
+export type IntegrationStateName =
+  | "READY"
+  | "NOT_CONFIGURED"
+  | "UNREACHABLE"
+  | "TOOL_MISSING"
+  | "OPERATION_FAILED"
+  | "DISABLED_BY_POLICY"
+  | "NOT_NEEDED";
+
+export interface IntegrationEvidence {
+  state: IntegrationStateName;
+  evidence_grade: EvidenceGrade;
+  reason: string;
+}
+
 export interface QaReceipt {
   schema: "mattspi.qa.receipt.v1";
   id: string;
@@ -79,6 +94,10 @@ export interface QaReceipt {
     not_checked?: string[];
   };
   lantern?: { context_pack_id?: string | null; decisions_consulted?: string[] };
+  /** Truthful per-integration evidence. NOT_NEEDED (gated off) differs from UNAVAILABLE. */
+  integrations?: Record<string, IntegrationEvidence>;
+  /** Stop reasons when verdict is STOP_RECOMMENDED. A STOP without recorded reasons is an evidence gap. */
+  stop_reasons?: string[];
   risks?: string[];
   unknowns?: string[];
   commands?: { command: string; exit_code: number; truncated?: boolean }[];

@@ -6,6 +6,7 @@
  */
 
 import { runCommand } from "../evidence/commands.js";
+import { resolveAstGrep } from "./tool-discovery.js";
 
 export interface StructuralHit {
   file: string;
@@ -16,31 +17,46 @@ export interface StructuralHit {
 export interface StructuralSearchResult {
   executed: boolean;
   hits: StructuralHit[];
+  executable?: string;
   error?: string;
 }
 
 export async function structuralSearch(
   cwd: string,
   pattern: string,
-  opts: { lang?: string; maxHits?: number } = {},
+  opts: {
+    lang?: string;
+    maxHits?: number;
+    resolver?: () => Promise<{ exe: string; source: string } | null>;
+  } = {},
 ): Promise<StructuralSearchResult> {
   const maxHits = opts.maxHits ?? 30;
-  const args = ["search", "--pattern", pattern, "--json"];
+  const resolved = opts.resolver
+    ? await opts.resolver()
+    : await resolveAstGrep();
+  if (!resolved) {
+    return {
+      executed: false,
+      hits: [],
+      error: "neither sg nor ast-grep on PATH",
+    };
+  }
+  // NOTE: the subcommand is `run`, not `search` (both sg and ast-grep).
+  // A previous `search` invocation never worked; the repaired live smoke
+  // test now guards against that regression.
+  const args = ["run", "--pattern", pattern, "--json", "."];
   if (opts.lang) args.push("--lang", opts.lang);
-  const r = await runCommand("ast-grep", args, {
+  const r = await runCommand(resolved.exe, args, {
     cwd,
     timeoutMs: 30_000,
     maxChars: 128 * 1024,
   });
   if (r.exitCode !== 0 && !r.stdout.trim().startsWith("[")) {
-    const missing =
-      /not recognized|not found|No such file/i.test(r.stderr) ||
-      r.exitCode === 1;
-    void missing;
     return {
       executed: false,
       hits: [],
-      error: r.stderr.slice(0, 300) || `ast-grep exit ${r.exitCode}`,
+      executable: resolved.source,
+      error: r.stderr.slice(0, 300) || `${resolved.exe} exit ${r.exitCode}`,
     };
   }
   try {
@@ -55,7 +71,7 @@ export async function structuralSearch(
       line: Number(it.range?.start?.line ?? 0),
       text: String(it.lines ?? it.text ?? "").slice(0, 300),
     }));
-    return { executed: true, hits };
+    return { executed: true, hits, executable: resolved.source };
   } catch {
     return {
       executed: false,
