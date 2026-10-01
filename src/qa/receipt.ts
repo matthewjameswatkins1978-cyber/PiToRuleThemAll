@@ -96,6 +96,10 @@ export function renderReceiptCompact(r: QaReceipt): string {
       );
     }
   }
+  if ((r.stop_reasons ?? []).length > 0) {
+    lines.push("Stop reasons:");
+    for (const s of (r.stop_reasons ?? []).slice(0, 5)) lines.push(`  - ${s}`);
+  }
   if (r.verdict === "STOP_RECOMMENDED") {
     lines.push(
       "STOP_RECOMMENDED authorises nothing. Tethers remains the authority boundary.",

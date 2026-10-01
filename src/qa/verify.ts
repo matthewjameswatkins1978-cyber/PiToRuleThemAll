@@ -357,6 +357,11 @@ export async function verify(
     });
     initial = r.result;
     spawnArgs = r.spawnArgs;
+    if (r.formatRepairs > 0) {
+      unknowns.push(
+        `verifier output needed ${r.formatRepairs} format repair(s); judgment restated, not re-taken`,
+      );
+    }
   }
 
   // 8. Deterministic signals fold-in.
@@ -457,19 +462,23 @@ export async function verify(
     }
   }
 
-  // 11. STOP packaging stays read-only: Tethers is consulted for state,
+  // 11. Authority state is always probed (cheap, read-only): the receipt
+  // shows the boundary's operation state, never a pre-check guess.
+  // STOP packaging stays read-only: Tethers is consulted for state,
   // never for permission. QA verdict != permission, always.
+  const tethersProbe = await deps.tethers.probe().catch(() => ({
+    ok: false as const,
+    version: "",
+    detail: "tethers probe threw",
+  }));
   if (verdict === "STOP_RECOMMENDED") {
-    const probe = await deps.tethers.probe().catch(() => ({
-      ok: false as const,
-      version: "",
-      detail: "tethers probe threw",
-    }));
     unknowns.push(
-      probe.ok
-        ? `tethers boundary present (${probe.detail}); STOP_RECOMMENDED authorises nothing`
-        : `tethers: ${probe.detail}; STOP_RECOMMENDED stands on QA evidence alone`,
+      tethersProbe.ok
+        ? `tethers boundary present (${tethersProbe.detail}); STOP_RECOMMENDED authorises nothing`
+        : `tethers: ${tethersProbe.detail}; STOP_RECOMMENDED stands on QA evidence alone`,
     );
+  } else if (!tethersProbe.ok) {
+    unknowns.push(`tethers: ${tethersProbe.detail}`);
   }
 
   const integrity = maxIntegrity(
@@ -522,27 +531,34 @@ export async function verify(
         evidence_grade: lanternPack.grade,
         reason: lanternPack.note,
       },
-      telltail: {
-        state:
-          telltailGrade === "EXECUTED"
-            ? "READY"
-            : deps.telltail.describe().state,
-        evidence_grade: telltailGrade,
-        reason: telltailNote,
-      },
+      telltail: telltailGate.run
+        ? {
+            state:
+              telltailGrade === "EXECUTED"
+                ? "READY"
+                : deps.telltail.describe().state,
+            evidence_grade: telltailGrade,
+            reason: telltailNote,
+          }
+        : {
+            state: "NOT_NEEDED",
+            evidence_grade: "UNAVAILABLE",
+            reason: telltailNote,
+          },
       reusery: {
         state: reusery.state,
         evidence_grade: reusery.grade,
         reason: reusery.note,
       },
       tethers: {
-        state: deps.tethers.describe().state,
-        evidence_grade: "UNAVAILABLE",
-        reason: deps.tethers.describe().reason,
+        state: tethersProbe.ok ? "READY" : deps.tethers.describe().state,
+        evidence_grade: tethersProbe.ok ? "EXECUTED" : "UNAVAILABLE",
+        reason: tethersProbe.detail,
       },
     },
     risks,
     unknowns,
+    stop_reasons: stopReasons,
     commands: [...commandRecords, ...reuse.commands],
     created_at: new Date().toISOString(),
   };

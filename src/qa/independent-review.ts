@@ -240,21 +240,54 @@ export function parseVerifierResult(raw: string): VerifierResult {
  * Run the independent review. Proves separation by construction:
  * separate process, --no-session, no builder narrative in the prompt.
  */
+/**
+ * True when the text contains a verdict object in contract shape with
+ * EXPLICIT verdict/integrity/checks keys. Defaulted shapes (missing
+ * keys filled by the parser) do NOT count — editorial JSON with extra
+ * commentary keys but no verdict must trigger the repair path.
+ */
+export function looksConforming(text: string): boolean {
+  try {
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start === -1 || end <= start) return false;
+    const obj = JSON.parse(text.slice(start, end + 1)) as Record<
+      string,
+      unknown
+    >;
+    return (
+      [
+        "PASS",
+        "PASS_WITH_NOTES",
+        "FAIL",
+        "INCONCLUSIVE",
+        "STOP_RECOMMENDED",
+      ].includes(String(obj["verdict"])) &&
+      ["OK", "SUSPECT", "COMPROMISED"].includes(String(obj["integrity"])) &&
+      Array.isArray(obj["checks"])
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function runIndependentReview(
   cwd: string,
   bundle: VerifierBundle,
-  opts: { spawn?: SpawnFn; timeoutMs?: number } = {},
-): Promise<{ result: VerifierResult; spawnArgs: string[] }> {
+  opts: { spawn?: SpawnFn; timeoutMs?: number; formatRetries?: number } = {},
+): Promise<{
+  result: VerifierResult;
+  spawnArgs: string[];
+  formatRepairs: number;
+}> {
   const spawnFn = opts.spawn ?? spawnPiVerifier;
   const prompt = buildVerifierPrompt(bundle, null);
   const task =
     "Perform the independent QA review described in the appended bundle. " +
     "Judge only the frozen spec. Return one JSON object and nothing else.";
   const args = [task];
-  const out = await spawnFn(args, prompt, {
-    cwd,
-    timeoutMs: opts.timeoutMs ?? 600_000,
-  });
+  const timeoutMs = opts.timeoutMs ?? 600_000;
+  const out = await spawnFn(args, prompt, { cwd, timeoutMs });
   if (out.exitCode !== 0 && !out.stdout.trim()) {
     return {
       result: {
@@ -269,11 +302,39 @@ export async function runIndependentReview(
         raw: out.stderr,
       },
       spawnArgs: args,
+      formatRepairs: 0,
     };
   }
-  const finalText = extractFinalText(out.stdout);
+  let finalText = extractFinalText(out.stdout);
+  let formatRepairs = 0;
+  const maxRepairs = opts.formatRetries ?? 1;
+  // Format-repair retry (verdict-neutral): the model judged but did not
+  // conform to the JSON contract. Ask it to restate the SAME judgment in
+  // the required shape — never a second opinion, at most maxRepairs.
+  while (formatRepairs < maxRepairs && !looksConforming(finalText)) {
+    formatRepairs++;
+    const repairPrompt = [
+      "Your previous response did not match the required JSON contract.",
+      "Restate the SAME verdict and checks in EXACTLY this shape and nothing else:",
+      '{"verdict":"PASS|PASS_WITH_NOTES|FAIL|INCONCLUSIVE|STOP_RECOMMENDED","integrity":"OK|SUSPECT|COMPROMISED",',
+      '"checks":[{"requirement_id":"A1","status":"satisfied|violated|unverified|not_checked","evidence_grade":"EXECUTED|OBSERVED|REPORTED|INFERRED|UNAVAILABLE","evidence":{}}],',
+      '"notes":[],"stopReasons":[],"integritySignals":[]}',
+      "Do not change your judgment. Previous response:",
+      finalText.slice(0, 6000),
+    ].join("\n");
+    const retry = await spawnFn(args, repairPrompt, { cwd, timeoutMs });
+    if (retry.exitCode === 0 && retry.stdout.trim()) {
+      finalText = extractFinalText(retry.stdout);
+    } else {
+      break;
+    }
+  }
   try {
-    return { result: parseVerifierResult(finalText), spawnArgs: args };
+    return {
+      result: parseVerifierResult(finalText),
+      spawnArgs: args,
+      formatRepairs,
+    };
   } catch {
     return {
       result: {
@@ -286,6 +347,7 @@ export async function runIndependentReview(
         raw: finalText.slice(0, 2000),
       },
       spawnArgs: args,
+      formatRepairs,
     };
   }
 }

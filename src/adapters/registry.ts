@@ -242,14 +242,30 @@ export async function createRegistry(
       return { client: sessionClient, close: () => caller.close() };
     };
     openLantern = openSession;
+    // Pooled caller: every call opens a fresh bridge process against the
+    // same service. Slightly slower than a session, but never a corpse:
+    // registry.lantern stays valid for the registry's whole lifetime.
+    // Explicit sessions remain available via lanternSession().
+    const pooled: LanternCaller = {
+      call: async (tool, args) => {
+        const one = new StdioMcpClient({
+          command: lanternBin,
+          args: ["mcp"],
+          env: { LIGHTING_SERVICE_URL: lanternUrl },
+        });
+        try {
+          await one.start();
+          return { ok: true, data: await one.callTool(tool, args) };
+        } catch (e) {
+          return { ok: false, error: (e as Error).message };
+        } finally {
+          await one.stop();
+        }
+      },
+    };
+    lantern = new LanternClient(pooled);
     // Probe once so describe() carries READY with version.
-    const probe = await openSession();
-    try {
-      await probe.client.status();
-    } finally {
-      await probe.close();
-    }
-    lantern = probe.client;
+    await lantern.status();
   }
 
   // Reusery: bridge binary + DB URL, else explicit degradation.

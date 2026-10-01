@@ -284,6 +284,14 @@ export class LanternClient {
     };
   }
 
+  private markReady(detail: string): void {
+    // Any successful operation proves reachability, not just status().
+    if (this.caller) {
+      this.state = "READY";
+      this.stateReason = detail;
+    }
+  }
+
   async status(): Promise<{
     reachable: boolean;
     grade: EvidenceGrade;
@@ -380,6 +388,7 @@ export class LanternClient {
       const data = (r.data ?? {}) as { memory_item?: unknown };
       const item = isRecord(data["memory_item"]) ? data["memory_item"] : null;
       const id = item && typeof item["id"] === "string" ? item["id"] : null;
+      this.markReady("lantern_remember ok");
       return { ok: true, memoryItemId: id, raw: r.data };
     } catch (e) {
       return {
@@ -409,6 +418,7 @@ export class LanternClient {
           error: r.error ?? "lantern_search failed",
         };
       const data = (r.data ?? {}) as { memory_items?: unknown };
+      this.markReady("lantern_search ok");
       return { ok: true, items: asMemoryItems(data["memory_items"]) };
     } catch (e) {
       return {
@@ -431,6 +441,7 @@ export class LanternClient {
       );
       if (!r.ok)
         return { ok: false, trail: [], error: r.error ?? "lantern_why failed" };
+      this.markReady("lantern_why ok");
       return { ok: true, trail: translateProvenance(r.data), raw: r.data };
     } catch (e) {
       return {
@@ -484,6 +495,7 @@ export class LanternClient {
           note: r.error ?? "lantern_context failed",
         };
       const pack = translateContext(r.data);
+      this.markReady("lantern_context ok");
       return {
         pack,
         grade: "EXECUTED",

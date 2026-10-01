@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildVerifierPrompt,
   extractFinalText,
+  looksConforming,
   parseVerifierResult,
   runIndependentReview,
   type VerifierBundle,
@@ -69,6 +70,86 @@ describe("parseVerifierResult", () => {
   });
   it("throws on missing JSON", () => {
     assert.throws(() => parseVerifierResult("no json here"), /no JSON/);
+  });
+});
+
+describe("looksConforming", () => {
+  it("accepts contract JSON, rejects editorial JSON", () => {
+    assert.equal(
+      looksConforming(
+        '{"verdict":"PASS","integrity":"OK","checks":[],"notes":[],"stopReasons":[],"integritySignals":[]}',
+      ),
+      true,
+    );
+    assert.equal(
+      looksConforming('{"diff-repo-mismatch": true, "notes": []}'),
+      false,
+    );
+    assert.equal(looksConforming("no json"), false);
+  });
+});
+
+describe("format-repair retry", () => {
+  it("restates the same judgment once when the first output is editorial", async () => {
+    const good = JSON.stringify({
+      verdict: "FAIL",
+      integrity: "OK",
+      checks: [
+        {
+          requirement_id: "A1",
+          status: "violated",
+          evidence_grade: "EXECUTED",
+        },
+      ],
+      notes: [],
+      stopReasons: [],
+      integritySignals: [],
+    });
+    let calls = 0;
+    const spawn = async (_a: string[], input: string) => {
+      calls++;
+      const text =
+        calls === 1 ? '{"editorial": true, "notes": ["not conforming"]}' : good;
+      void input;
+      return {
+        exitCode: 0,
+        stdout:
+          JSON.stringify({
+            type: "message_end",
+            message: { role: "assistant", content: [{ type: "text", text }] },
+          }) + "\n",
+        stderr: "",
+      };
+    };
+    const { result, formatRepairs } = await runIndependentReview(
+      "/tmp",
+      bundle,
+      { spawn },
+    );
+    assert.equal(calls, 2);
+    assert.equal(formatRepairs, 1);
+    assert.equal(result.verdict, "FAIL");
+  });
+  it("gives up honestly after the repair budget", async () => {
+    const spawn = async () => ({
+      exitCode: 0,
+      stdout:
+        JSON.stringify({
+          type: "message_end",
+          message: {
+            role: "assistant",
+            content: [{ type: "text", text: "still prose" }],
+          },
+        }) + "\n",
+      stderr: "",
+    });
+    const { result, formatRepairs } = await runIndependentReview(
+      "/tmp",
+      bundle,
+      { spawn, formatRetries: 1 },
+    );
+    assert.equal(formatRepairs, 1);
+    assert.equal(result.verdict, "INCONCLUSIVE");
   });
 });
 

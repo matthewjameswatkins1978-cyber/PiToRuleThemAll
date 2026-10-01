@@ -199,6 +199,7 @@
         "additionalProperties": false
       }
     },
+    "stop_reasons": { "type": "array", "items": { "type": "string" } },
     "risks": { "type": "array", "items": { "type": "string" } },
     "unknowns": { "type": "array", "items": { "type": "string" } },
     "commands": {

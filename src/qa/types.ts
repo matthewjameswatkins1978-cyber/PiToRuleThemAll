@@ -96,6 +96,8 @@ export interface QaReceipt {
   lantern?: { context_pack_id?: string | null; decisions_consulted?: string[] };
   /** Truthful per-integration evidence. NOT_NEEDED (gated off) differs from UNAVAILABLE. */
   integrations?: Record<string, IntegrationEvidence>;
+  /** Stop reasons when verdict is STOP_RECOMMENDED. A STOP without recorded reasons is an evidence gap. */
+  stop_reasons?: string[];
   risks?: string[];
   unknowns?: string[];
   commands?: { command: string; exit_code: number; truncated?: boolean }[];

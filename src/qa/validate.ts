@@ -174,6 +174,7 @@ export function validateReceipt(
       "builder_claims",
       "lantern",
       "integrations",
+      "stop_reasons",
       "risks",
       "unknowns",
       "commands",
@@ -285,6 +286,16 @@ export function validateReceipt(
     for (const f of ["discovered", "executed", "passed", "failed"]) {
       if (!Number.isInteger(tests[f]) || (tests[f] as number) < 0)
         errors.push(`receipt.tests.${f}: must be an integer >= 0`);
+    }
+  }
+
+  const stopReasons = doc["stop_reasons"];
+  if (stopReasons !== undefined) {
+    if (
+      !Array.isArray(stopReasons) ||
+      !stopReasons.every((s) => typeof s === "string")
+    ) {
+      errors.push("receipt.stop_reasons: must be string[]");
     }
   }
 
