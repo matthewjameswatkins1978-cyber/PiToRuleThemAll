@@ -100,6 +100,18 @@ describe("LanternClient live contract", () => {
     });
     assert.ok(!("query" in (seen[0]?.args ?? {})));
   });
+  it("why accepts memory_id, belief_id and query shapes", async () => {
+    const seen: { tool: string; args: Record<string, unknown> }[] = [];
+    const c = new LanternClient(fakeLantern(seen));
+    await c.why({ memory_id: "m1" });
+    await c.why({ belief_id: "b1" });
+    await c.why({ query: "what persists?" });
+    assert.deepEqual(
+      seen.map((s) => s.args),
+      [{ memory_id: "m1" }, { belief_id: "b1" }, { query: "what persists?" }],
+    );
+    assert.ok(seen.every((s) => s.tool === "lantern_why"));
+  });
   it("why uses memory_id; context maps budgets and translates", async () => {
     const seen: { tool: string; args: Record<string, unknown> }[] = [];
     const c = new LanternClient(fakeLantern(seen));
