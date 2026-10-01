@@ -18,8 +18,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "npm run build && node --test dist/tests/adversarial.test.js dist/tests/adapters.test.js dist/tests/evidence.test.js dist/tests/extension.test.js dist/tests/git.test.js dist/tests/independent-review.test.js dist/tests/m0-lantern.live.test.js dist/tests/preflight.test.js dist/tests/receipt.test.js dist/tests/reuse.test.js dist/tests/spec.test.js dist/tests/validate.test.js dist/tests/verdict.test.js dist/tests/verify.test.js",
-    "test:live": "npm run build && node --test dist/tests/adversarial.test.js dist/tests/adapters.test.js dist/tests/evidence.test.js dist/tests/extension.test.js dist/tests/git.test.js dist/tests/independent-review.test.js dist/tests/m0-lantern.live.test.js dist/tests/preflight.test.js dist/tests/receipt.test.js dist/tests/reuse.test.js dist/tests/spec.test.js dist/tests/validate.test.js dist/tests/verdict.test.js dist/tests/verify.test.js"
+    "test": "node scripts/run-tests.mjs",
+    "test:live": "node scripts/run-tests.mjs --live"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",

@@ -63,6 +63,10 @@ describe("parseTestSummary", () => {
     const s = parseTestSummary(["x"], "# pass 12\n# fail 1\n");
     assert.deepEqual(s, { passed: 12, failed: 1 });
   });
+  it("parses node --test spec-reporter output", () => {
+    const s = parseTestSummary(["x"], "ℹ tests 125\nℹ pass 125\nℹ fail 0\n");
+    assert.deepEqual(s, { passed: 125, failed: 0 });
+  });
   it("parses cargo output", () => {
     const s = parseTestSummary(
       ["x"],
@@ -81,14 +85,18 @@ describe("parseTestSummary", () => {
 describe("runTests", () => {
   it("runs a real npm test and records EXECUTED-grade metadata", async () => {
     const dir = await makeTempRepo({
-      "package.json": JSON.stringify({ scripts: { test: "node --test" } }),
-      "a.test.js": "const t=require('node:test');t.test('x',()=>{});\n",
+      "package.json": JSON.stringify({ scripts: { test: "node check.js" } }),
+      "check.js": "console.log('INNER_SUITE_OK');\n",
     });
     try {
+      // NOTE: the inner suite is a plain node script, NOT node --test:
+      // node skips nested `node --test` runs inside a test process
+      // (recursive-runner guard), so nesting would prove nothing.
       const e = await runTests(dir, 60_000);
       assert.equal(e.discovered, true);
       assert.ok(e.result);
       assert.equal(e.result.exitCode, 0);
+      assert.ok(e.result.stdout.includes("INNER_SUITE_OK"));
     } finally {
       cleanup(dir);
     }

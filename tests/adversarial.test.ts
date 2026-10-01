@@ -132,6 +132,24 @@ describe("adversarial fixtures", () => {
     });
   }
 
+  it("mentioning skip-patterns in strings is not weakening (fixture self-reference)", () => {
+    const w = detectWeakenedTests(
+      "const patterns = [/\\.skip\\(/, /xit\\(/]; // detector self-test",
+    );
+    assert.equal(w.detected, false);
+  });
+  it("process.exit is not xit (word boundary)", () => {
+    const w = detectWeakenedTests(
+      "+ if (r.status !== 0) process.exit(r.status ?? 1);",
+    );
+    assert.equal(w.detected, false);
+  });
+  it("real skip calls still detected after quote stripping", () => {
+    const w = detectWeakenedTests(
+      "+ test.skip('loads config', () => {\\n+ });",
+    );
+    assert.equal(w.detected, true);
+  });
   it("good implementation produces no detections (false-positive guard)", () => {
     const good = cases.find((c) => c.id === "good-implementation")!;
     const d = runDetection({

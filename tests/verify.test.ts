@@ -51,8 +51,9 @@ const passResult = {
 
 async function setupRepo(): Promise<string> {
   const dir = await makeTempRepo({
-    "package.json": JSON.stringify({ scripts: { test: "node --test" } }),
-    "a.test.js": "const t=require('node:test');t.test('x',()=>{});\n",
+    // Plain script, not node --test: node skips nested runner invocations.
+    "package.json": JSON.stringify({ scripts: { test: "node check.js" } }),
+    "check.js": "console.log('ok');\n",
   });
   const r = await preflight(
     dir,
