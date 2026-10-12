@@ -189,6 +189,60 @@ describe("verify", () => {
       cleanup(dir);
     }
   });
+  it("fabricated PASS with a missing requirement becomes INCONCLUSIVE+SUSPECT", async () => {
+    const dir = await makeTempRepo({
+      "package.json": JSON.stringify({ scripts: { test: "node check.js" } }),
+      "check.js": "console.log('ok');\n",
+    });
+    try {
+      const r = await preflight(
+        dir,
+        {
+          rawRequest: "Add X and Y",
+          normalizedIntent: "Add X and Y",
+          acceptance: [
+            { id: "A1", requirement: "X works" },
+            { id: "A2", requirement: "Y works" },
+          ],
+        },
+        { lantern: new LanternClient(null), reusery: new ReuseryClient(null) },
+      );
+      const o = await verify(dir, deps(), {
+        specId: r.specId,
+        spawn: fakeSpawnFor(passResult),
+      });
+      assert.equal(o.receipt.verdict, "INCONCLUSIVE");
+      assert.equal(o.receipt.integrity, "SUSPECT");
+      assert.equal(o.receipt.verification.length, 0);
+      assert.equal(o.receipt.intent.satisfied, false);
+    } finally {
+      cleanup(dir);
+    }
+  });
+  it("fabricated PASS with duplicate or unknown ids becomes INCONCLUSIVE+SUSPECT", async () => {
+    const { dir, specId } = split(await setupRepo());
+    const dup = {
+      ...passResult,
+      checks: [
+        { requirement_id: "A1", status: "satisfied", evidence_grade: "EXECUTED" },
+        { requirement_id: "A1", status: "satisfied", evidence_grade: "EXECUTED" },
+      ],
+    };
+    const unknown = {
+      ...passResult,
+      checks: [{ requirement_id: "A9", status: "satisfied", evidence_grade: "EXECUTED" }],
+    };
+    try {
+      for (const result of [dup, unknown]) {
+        const o = await verify(dir, deps(), { specId, spawn: fakeSpawnFor(result) });
+        assert.equal(o.receipt.verdict, "INCONCLUSIVE");
+        assert.equal(o.receipt.integrity, "SUSPECT");
+        assert.equal(o.receipt.verification.length, 0);
+      }
+    } finally {
+      cleanup(dir);
+    }
+  });
   it("spec-only review never passes and skips the spawn", async () => {
     const { dir, specId } = split(await setupRepo());
     try {

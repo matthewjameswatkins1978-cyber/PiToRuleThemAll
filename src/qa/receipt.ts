@@ -56,6 +56,36 @@ export function latestReceipt(repoRoot: string): QaReceipt | null {
   return best;
 }
 
+/** Live-state comparison for a stored receipt. Never throws: git failure
+ *  yields UNKNOWN, never a verdict about the receipt. */
+export interface ReceiptFreshness {
+  state: "FRESH" | "STALE" | "UNKNOWN";
+  detail: string;
+}
+
+export function assessReceiptFreshness(
+  live: { headSha: string | null; dirty: boolean; remoteSha: string | null } | null,
+  receipt: QaReceipt,
+): ReceiptFreshness {
+  if (!live || !live.headSha) return { state: "UNKNOWN", detail: "live git state unreadable" };
+  if (live.headSha.toLowerCase() !== receipt.subject.head_sha.toLowerCase()) {
+    return {
+      state: "STALE",
+      detail: `HEAD moved since verification (live ${live.headSha.slice(0, 12)}, receipt ${receipt.subject.head_sha.slice(0, 12)}): re-run /qa verify`,
+    };
+  }
+  if (live.dirty) {
+    return { state: "STALE", detail: "worktree is dirty: verified state no longer exactly present, re-run /qa verify" };
+  }
+  if (receipt.subject.remote_verified && live.remoteSha && live.remoteSha.toLowerCase() !== (receipt.subject.remote_sha ?? "").toLowerCase()) {
+    return {
+      state: "STALE",
+      detail: `remote moved since verification (live ${live.remoteSha.slice(0, 12)}): re-run /qa verify`,
+    };
+  }
+  return { state: "FRESH", detail: `HEAD ${live.headSha.slice(0, 12)} matches the verified receipt` };
+}
+
 /** Compact human display. Full JSON stays in the file. */
 export function renderReceiptCompact(r: QaReceipt): string {
   const failed = r.verification.filter(

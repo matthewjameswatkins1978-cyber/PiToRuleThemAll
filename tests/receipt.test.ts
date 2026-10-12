@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  assessReceiptFreshness,
   latestReceipt,
   loadReceipt,
   renderReceiptCompact,
@@ -108,5 +109,39 @@ describe("renderReceiptCompact", () => {
     const text = renderReceiptCompact(r);
     assert.ok(text.includes("lantern: READY [EXECUTED]"));
     assert.ok(text.includes("reusery: NOT_NEEDED [UNAVAILABLE]"));
+  });
+  it("freshness: matching live state is FRESH", () => {
+    const r = receipt();
+    r.subject.head_sha = "abc123";
+    r.subject.remote_verified = true;
+    r.subject.remote_sha = "abc123";
+    const f = assessReceiptFreshness({ headSha: "abc123", dirty: false, remoteSha: "abc123" }, r);
+    assert.equal(f.state, "FRESH");
+  });
+  it("freshness: moved HEAD is STALE", () => {
+    const r = receipt();
+    r.subject.head_sha = "abc123";
+    const f = assessReceiptFreshness({ headSha: "def456", dirty: false, remoteSha: null }, r);
+    assert.equal(f.state, "STALE");
+    assert.match(f.detail, /HEAD moved/);
+  });
+  it("freshness: dirty worktree is STALE", () => {
+    const r = receipt();
+    r.subject.head_sha = "abc123";
+    const f = assessReceiptFreshness({ headSha: "abc123", dirty: true, remoteSha: null }, r);
+    assert.equal(f.state, "STALE");
+    assert.match(f.detail, /dirty/);
+  });
+  it("freshness: moved remote is STALE, unreadable git is UNKNOWN", () => {
+    const r = receipt();
+    r.subject.head_sha = "abc123";
+    r.subject.remote_verified = true;
+    r.subject.remote_sha = "abc123";
+    const moved = assessReceiptFreshness({ headSha: "abc123", dirty: false, remoteSha: "fff999" }, r);
+    assert.equal(moved.state, "STALE");
+    assert.match(moved.detail, /remote moved/);
+    assert.equal(assessReceiptFreshness(null, r).state, "UNKNOWN");
+    // Null live HEAD (shallow/broken repo) is UNKNOWN, never a verdict.
+    assert.equal(assessReceiptFreshness({ headSha: null, dirty: false, remoteSha: null }, r).state, "UNKNOWN");
   });
 });

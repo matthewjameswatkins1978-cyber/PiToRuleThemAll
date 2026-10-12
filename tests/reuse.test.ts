@@ -65,7 +65,7 @@ describe("structuralSearch", () => {
       cleanup(dir);
     }
   });
-  it("LIVE smoke: installed sg/ast-grep must EXECUTE, never UNAVAILABLE", async () => {
+  it("LIVE smoke: installed sg/ast-grep must EXECUTE, never UNAVAILABLE", { skip: process.env["PI_QA_LIVE_SG"] !== "1" && "needs a real sg/ast-grep binary (run with --live)" }, async () => {
     const { resolveAstGrep, resetAstGrepCache } =
       await import("../src/reuse/tool-discovery.js");
     resetAstGrepCache();
