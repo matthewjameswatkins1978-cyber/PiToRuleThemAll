@@ -150,6 +150,14 @@ export function validateSpec(
     errors.push("spec.supersedes: must be a string");
 
   if (errors.length > 0) return { ok: false, errors };
+  if (Array.isArray(acc)) {
+    const acceptanceIds = acc
+      .map((item) => (isRecord(item) ? item["id"] : undefined))
+      .filter((id): id is string => typeof id === "string");
+    if (new Set(acceptanceIds).size !== acceptanceIds.length)
+      errors.push("spec.acceptance: requirement ids must be unique");
+  }
+  if (errors.length > 0) return { ok: false, errors };
   return { ok: true, spec: doc as unknown as QaSpec };
 }
 

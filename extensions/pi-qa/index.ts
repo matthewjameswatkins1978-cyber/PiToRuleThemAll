@@ -30,6 +30,8 @@ import {
 } from "../../src/adapters/registry.js";
 import { doctor, renderDoctor } from "../../src/qa/doctor.js";
 import {
+  assessReceiptFreshness,
+  formatReceiptOutput,
   latestReceipt,
   loadReceipt,
   renderReceiptCompact,
@@ -360,8 +362,21 @@ export async function handleQa(
       ctx.ui.notify("No QA receipts yet. Run /qa verify first.", "error");
       return;
     }
+    // A stored PASS is evidence about a frozen revision, not a live claim:
+    // compare against current git state so post-verification changes surface.
+    let freshness: { state: "FRESH" | "STALE" | "UNKNOWN"; detail: string } = { state: "UNKNOWN", detail: "live git state unreadable" };
+    try {
+      const { snapshotGit } = await import("../../src/evidence/git.js");
+      const snap = await snapshotGit(repoRoot);
+      freshness = assessReceiptFreshness(
+        snap.isRepo ? { headSha: snap.headSha, dirty: snap.dirty, remoteSha: snap.remoteSha } : null,
+        r,
+      );
+    } catch {
+      /* freshness stays UNKNOWN; the receipt itself is still shown */
+    }
     ctx.ui.notify(
-      asJson ? JSON.stringify(r, null, 2) : renderReceiptCompact(r),
+      formatReceiptOutput(r, freshness, asJson),
       "info",
     );
     return;

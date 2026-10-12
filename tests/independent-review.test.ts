@@ -68,6 +68,33 @@ describe("parseVerifierResult", () => {
     assert.equal(r.verdict, "FAIL");
     assert.deepEqual(r.notes, ["x"]);
   });
+  it("rejects omitted, duplicate, and unknown frozen requirement checks", () => {
+    const result = (ids: string[]) =>
+      JSON.stringify({
+        verdict: "PASS",
+        integrity: "OK",
+        checks: ids.map((requirement_id) => ({
+          requirement_id,
+          status: "satisfied",
+          evidence_grade: "EXECUTED",
+        })),
+        notes: [],
+        stopReasons: [],
+        integritySignals: [],
+      });
+    assert.throws(
+      () => parseVerifierResult(result(["A1"]), ["A1", "A2"]),
+      /omitted/,
+    );
+    assert.throws(
+      () => parseVerifierResult(result(["A1", "A1"]), ["A1"]),
+      /duplicate/,
+    );
+    assert.throws(
+      () => parseVerifierResult(result(["A1", "A3"]), ["A1", "A2"]),
+      /unknown/,
+    );
+  });
   it("throws on missing JSON", () => {
     assert.throws(() => parseVerifierResult("no json here"), /no JSON/);
   });
@@ -199,6 +226,30 @@ describe("runIndependentReview isolation", () => {
         exitCode: 1,
         stdout: "",
         stderr: "model auth missing",
+      }),
+    });
+    assert.equal(result.verdict, "INCONCLUSIVE");
+    assert.equal(result.integrity, "SUSPECT");
+  });
+  it("rejects a valid-looking PASS from a failed verifier process", async () => {
+    const { result } = await runIndependentReview("/tmp", bundle, {
+      spawn: async () => ({
+        exitCode: 1,
+        stdout: JSON.stringify({
+          verdict: "PASS",
+          integrity: "OK",
+          checks: [
+            {
+              requirement_id: "A1",
+              status: "satisfied",
+              evidence_grade: "EXECUTED",
+            },
+          ],
+          notes: [],
+          stopReasons: [],
+          integritySignals: [],
+        }),
+        stderr: "process exited unsuccessfully",
       }),
     });
     assert.equal(result.verdict, "INCONCLUSIVE");
