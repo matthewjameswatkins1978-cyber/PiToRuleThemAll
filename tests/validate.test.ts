@@ -45,6 +45,18 @@ describe("validateSpec", () => {
     const r = validateSpec({ ...goodSpec, acceptance: [] });
     assert.equal(r.ok, false);
   });
+  it("rejects duplicate acceptance ids", () => {
+    const r = validateSpec({
+      ...goodSpec,
+      acceptance: [
+        { id: "A1", requirement: "first condition" },
+        { id: "A1", requirement: "second condition" },
+      ],
+    });
+    assert.equal(r.ok, false);
+    if (!r.ok)
+      assert.ok(r.errors.some((error) => error.includes("ids must be unique")));
+  });
   it("rejects bad acceptance ids", () => {
     const r = validateSpec({
       ...goodSpec,

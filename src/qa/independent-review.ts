@@ -56,6 +56,10 @@ export const spawnPiVerifier: SpawnFn = (args, input, opts) =>
     // system-prompt file; argv carries only the short task instruction.
     fs.writeFileSync(bundleFile, input, "utf-8");
     const { exe, argv } = platformSpawn("pi", [
+      "--no-extensions",
+      "--no-mcp",
+      "--no-tools",
+      "--no-skills",
       "--mode",
       "json",
       "-p",
@@ -197,7 +201,10 @@ export function extractFinalText(jsonStream: string): string {
   return last || jsonStream.trim().slice(-8000);
 }
 
-export function parseVerifierResult(raw: string): VerifierResult {
+export function parseVerifierResult(
+  raw: string,
+  expectedRequirementIds?: readonly string[],
+): VerifierResult {
   const start = raw.indexOf("{");
   const end = raw.lastIndexOf("}");
   if (start === -1 || end <= start)
@@ -219,6 +226,58 @@ export function parseVerifierResult(raw: string): VerifierResult {
             : {},
       }))
     : [];
+  if (expectedRequirementIds) {
+    const expected = new Set(expectedRequirementIds);
+    const observed = checks.map((check) => check.requirement_id);
+    if (
+      expected.size !== expectedRequirementIds.length ||
+      observed.some((id) => !expected.has(id)) ||
+      new Set(observed).size !== observed.length
+    )
+      throw new Error(
+        "verifier checks contain duplicate or unknown requirement ids",
+      );
+    if (
+      observed.length !== expected.size ||
+      [...expected].some((id) => !observed.includes(id))
+    )
+      throw new Error(
+        "verifier omitted one or more frozen acceptance requirements",
+      );
+  }
+  const allowedStatuses = new Set([
+    "satisfied",
+    "violated",
+    "unverified",
+    "not_checked",
+  ]);
+  const allowedGrades = new Set([
+    "EXECUTED",
+    "OBSERVED",
+    "REPORTED",
+    "INFERRED",
+    "UNAVAILABLE",
+  ]);
+  if (
+    ![
+      "PASS",
+      "PASS_WITH_NOTES",
+      "FAIL",
+      "INCONCLUSIVE",
+      "STOP_RECOMMENDED",
+    ].includes(verdict)
+  )
+    throw new Error("verifier returned an invalid verdict");
+  if (!["OK", "SUSPECT", "COMPROMISED"].includes(integrity))
+    throw new Error("verifier returned invalid integrity");
+  if (
+    checks.some(
+      (check) =>
+        !allowedStatuses.has(check.status) ||
+        !allowedGrades.has(check.evidence_grade),
+    )
+  )
+    throw new Error("verifier returned invalid check status or evidence grade");
   return {
     verdict,
     integrity,
@@ -286,9 +345,15 @@ export async function runIndependentReview(
     "Perform the independent QA review described in the appended bundle. " +
     "Judge only the frozen spec. Return one JSON object and nothing else.";
   const args = [task];
+  const spec = bundle.spec as { acceptance?: { id?: unknown }[] };
+  const expectedRequirementIds = Array.isArray(spec.acceptance)
+    ? spec.acceptance
+        .map((item) => item.id)
+        .filter((id): id is string => typeof id === "string")
+    : undefined;
   const timeoutMs = opts.timeoutMs ?? 600_000;
   const out = await spawnFn(args, prompt, { cwd, timeoutMs });
-  if (out.exitCode !== 0 && !out.stdout.trim()) {
+  if (out.exitCode !== 0) {
     return {
       result: {
         verdict: "INCONCLUSIVE",
@@ -331,7 +396,7 @@ export async function runIndependentReview(
   }
   try {
     return {
-      result: parseVerifierResult(finalText),
+      result: parseVerifierResult(finalText, expectedRequirementIds),
       spawnArgs: args,
       formatRepairs,
     };
