@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   assessReceiptFreshness,
+  formatReceiptOutput,
   latestReceipt,
   loadReceipt,
   renderReceiptCompact,
@@ -132,7 +133,7 @@ describe("renderReceiptCompact", () => {
     assert.equal(f.state, "STALE");
     assert.match(f.detail, /dirty/);
   });
-  it("freshness: moved remote is STALE, unreadable git is UNKNOWN", () => {
+  it("freshness: moved remote is STALE, unreachable remote is UNKNOWN", () => {
     const r = receipt();
     r.subject.head_sha = "abc123";
     r.subject.remote_verified = true;
@@ -140,8 +141,25 @@ describe("renderReceiptCompact", () => {
     const moved = assessReceiptFreshness({ headSha: "abc123", dirty: false, remoteSha: "fff999" }, r);
     assert.equal(moved.state, "STALE");
     assert.match(moved.detail, /remote moved/);
+    const unreachable = assessReceiptFreshness({ headSha: "abc123", dirty: false, remoteSha: null }, r);
+    assert.equal(unreachable.state, "UNKNOWN");
+    assert.match(unreachable.detail, /unreachable/);
+    // No remote claim, no remote question: local match stays FRESH.
+    r.subject.remote_verified = false;
+    const localOnly = assessReceiptFreshness({ headSha: "abc123", dirty: false, remoteSha: null }, r);
+    assert.equal(localOnly.state, "FRESH");
     assert.equal(assessReceiptFreshness(null, r).state, "UNKNOWN");
     // Null live HEAD (shallow/broken repo) is UNKNOWN, never a verdict.
     assert.equal(assessReceiptFreshness({ headSha: null, dirty: false, remoteSha: null }, r).state, "UNKNOWN");
+  });
+  it("--json output parses and carries receipt plus freshness envelope", () => {
+    const r = receipt();
+    const out = formatReceiptOutput(r, { state: "STALE", detail: "HEAD moved" }, true);
+    const parsed = JSON.parse(out);
+    assert.equal(parsed.receipt.id, "qa-test01");
+    assert.equal(parsed.freshness.state, "STALE");
+    assert.match(parsed.freshness.detail, /HEAD moved/);
+    const text = formatReceiptOutput(r, { state: "FRESH", detail: "ok" }, false);
+    assert.match(text, /Freshness: FRESH/);
   });
 });

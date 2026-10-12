@@ -77,6 +77,11 @@ export function assessReceiptFreshness(
   if (live.dirty) {
     return { state: "STALE", detail: "worktree is dirty: verified state no longer exactly present, re-run /qa verify" };
   }
+  if (receipt.subject.remote_verified && !live.remoteSha) {
+    // The receipt claims a verified remote, but the remote is unreachable
+    // now: nothing proves it is still current. UNKNOWN, never FRESH.
+    return { state: "UNKNOWN", detail: "remote unreachable: previously verified remote cannot be confirmed current" };
+  }
   if (receipt.subject.remote_verified && live.remoteSha && live.remoteSha.toLowerCase() !== (receipt.subject.remote_sha ?? "").toLowerCase()) {
     return {
       state: "STALE",
@@ -84,6 +89,13 @@ export function assessReceiptFreshness(
     };
   }
   return { state: "FRESH", detail: `HEAD ${live.headSha.slice(0, 12)} matches the verified receipt` };
+}
+
+/** Machine output for `/qa receipt`: the receipt plus a freshness envelope.
+ *  Always valid JSON — never text appended after the document. */
+export function formatReceiptOutput(r: QaReceipt, freshness: ReceiptFreshness, asJson: boolean): string {
+  if (!asJson) return `${renderReceiptCompact(r)}\nFreshness: ${freshness.state} — ${freshness.detail}`;
+  return JSON.stringify({ receipt: r, freshness: { state: freshness.state, detail: freshness.detail } }, null, 2);
 }
 
 /** Compact human display. Full JSON stays in the file. */
